@@ -2,5 +2,6 @@ packages:
   - "frontend"
   - "backend"
 allowBuilds:
+  '@scarf/scarf': true
   esbuild: true
   workerd: true
