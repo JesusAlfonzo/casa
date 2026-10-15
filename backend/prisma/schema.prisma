@@ -1,0 +1,811 @@
+// ============================================================================
+// PRISMA SCHEMA - SISTEMA ERP HÍBRIDO (INVENTARIO, SERVICIOS Y STREAMING)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+// ============================================================================
+// ENUMS (ESTADOS Y TIPOS ESCALABLES)
+// ============================================================================
+
+enum EstadoCompra {
+  BORRADOR
+  PENDIENTE
+  PARCIALMENTE_PAGADA
+  PAGADA
+  RECIBIDA
+  CANCELADA
+}
+
+enum TipoSalida {
+  VENTA
+  CONSUMO_INTERNO
+  MERMA
+  AJUSTE_SALIDA
+}
+
+enum EstadoVenta {
+  COTIZACION
+  PENDIENTE_PAGO
+  PARCIALMENTE_PAGADA
+  COMPLETADA
+  ANULADA
+}
+
+enum TipoItemVenta {
+  PRODUCTO
+  SERVICIO
+  SUSCRIPCION
+}
+
+enum TipoMovimientoInventario {
+  ENTRADA_COMPRA
+  SALIDA_VENTA
+  SALIDA_MERMA
+  TRANSFERENCIA_ENTRADA
+  TRANSFERENCIA_SALIDA
+  AJUSTE_POSITIVO
+  AJUSTE_NEGATIVO
+  DEVOLUCION_CLIENTE
+  DEVOLUCION_PROVEEDOR
+}
+
+enum TipoFlujoPago {
+  INGRESO // Cobro de venta / suscripción
+  EGRESO  // Pago de compra / gasto a proveedor
+}
+
+enum EstadoPago {
+  PENDIENTE
+  VERIFICADO
+  RECHAZADO
+  REEMBOLSADO
+}
+
+enum EstadoCuentaStreaming {
+  DISPONIBLE
+  COMPLETA
+  VENCIDA
+  CAIDA_SOPORTE
+  SUSPENDIDA
+}
+
+enum EstadoSuscripcion {
+  ACTIVA
+  POR_VENCER
+  VENCIDA
+  SUSPENDIDA
+  CANCELADA
+}
+
+enum TipoCuentaFinanciera {
+  BANCO_NACIONAL
+  BANCO_INTERNACIONAL
+  BILLETERA_DIGITAL // Zelle, Binance, PayPal, etc.
+  EFECTIVO_CAJA
+}
+
+// ============================================================================
+// 1. MÓDULO DE USUARIOS, ROLES Y PERMISOS (RBAC + PERMISOS DIRECTOS)
+// ============================================================================
+
+model Usuario {
+  id            String   @id @default(uuid())
+  nombre        String
+  apellido      String?
+  email         String   @unique
+  username      String?  @unique
+  passwordHash  String
+  telefono      String?
+  activo        Boolean  @default(true)
+  ultimoAcceso  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  // Relaciones de Seguridad (Tablas Puente)
+  roles            UsuarioRol[]
+  permisosDirectos UsuarioPermiso[]
+
+  // Auditoría Operativa
+  comprasRegistradas    Compra[]
+  ventasRegistradas     Venta[]
+  movimientosInventario MovimientoInventario[]
+  pagosRegistrados      TransaccionPago[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Rol {
+  id          String   @id @default(uuid())
+  nombre      String   @unique // Ej: ADMIN, VENDEDOR, ALMACENISTA, SOPORTE
+  descripcion String?
+  esSistema   Boolean  @default(false)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones (Tablas Puente)
+  usuarios UsuarioRol[]
+  permisos RolPermiso[]
+
+  @@map("roles")
+}
+
+model Permiso {
+  id          String   @id @default(uuid())
+  codigo      String   @unique // Ej: "compras.crear", "inventario.editar", "streaming.ver_claves"
+  nombre      String
+  modulo      String   // Ej: "COMPRAS", "VENTAS", "INVENTARIO", "STREAMING", "FINANZAS"
+  descripcion String?
+  createdAt   DateTime @default(now())
+
+  // Relaciones (Tablas Puente)
+  roles    RolPermiso[]
+  usuarios UsuarioPermiso[]
+
+  @@index([modulo])
+  @@map("permisos")
+}
+
+/// Tabla puente N:M entre Users y Roles
+model UsuarioRol {
+  id         String   @id @default(uuid())
+  usuarioId  String
+  rolId      String
+  asignadoEn DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, rolId])
+  @@index([rolId])
+  @@map("usuario_roles")
+}
+
+/// Tabla puente N:M entre Roles y Permisos (faltante en la maqueta original)
+model RolPermiso {
+  id         String   @id @default(uuid())
+  rolId      String
+  permisoId  String
+  asignadoEn DateTime @default(now())
+
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@unique([rolId, permisoId])
+  @@index([permisoId])
+  @@map("rol_permisos")
+}
+
+/// Tabla puente N:M entre Users y Permisos para excepciones u overrides directos
+model UsuarioPermiso {
+  id         String   @id @default(uuid())
+  usuarioId  String
+  permisoId  String
+  concedido  Boolean  @default(true) // true = otorga permiso extra, false = revoca permiso heredado del rol
+  asignadoEn DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, permisoId])
+  @@index([permisoId])
+  @@map("usuario_permisos")
+}
+
+// ============================================================================
+// 2. MÓDULO FINANCIERO: MONEDAS, TASAS DE CAMBIO, CUENTAS Y MÉTODOS DE PAGO
+// ============================================================================
+
+model Moneda {
+  id          String   @id @default(uuid())
+  codigo      String   @unique // Ej: USD, VES, EUR, COP, USDT
+  nombre      String
+  simbolo     String   // Ej: $, Bs., €
+  esPrincipal Boolean  @default(false) // Moneda base contable del sistema
+  decimales   Int      @default(2)
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Una tasa de cambio requiere Moneda Origen y Moneda Destino
+  tasasComoOrigen  TasaCambio[] @relation("MonedaOrigen")
+  tasasComoDestino TasaCambio[] @relation("MonedaDestino")
+
+  cuentas           CuentaFinanciera[]
+  compras           Compra[]
+  ventas            Venta[]
+  transaccionesPago TransaccionPago[]
+
+  @@map("monedas")
+}
+
+model TasaCambio {
+  id              String    @id @default(uuid())
+  monedaOrigenId  String
+  monedaDestinoId String
+  tasa            Decimal   @db.Decimal(18, 6)
+  fuente          String?   // Ej: "BCV", "Paralelo", "Binance P2P", "Manual"
+  fechaVigencia   DateTime  @default(now())
+  fechaFin        DateTime? // Null si es la tasa vigente actual
+  activa          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  monedaOrigen  Moneda @relation("MonedaOrigen", fields: [monedaOrigenId], references: [id])
+  monedaDestino Moneda @relation("MonedaDestino", fields: [monedaDestinoId], references: [id])
+
+  compras           Compra[]
+  ventas            Venta[]
+  transaccionesPago TransaccionPago[]
+
+  @@index([monedaOrigenId, monedaDestinoId, activa])
+  @@index([fechaVigencia])
+  @@map("tasas_cambio")
+}
+
+model MetodoPago {
+  id                 String   @id @default(uuid())
+  nombre             String   @unique // Ej: Pago Móvil, Zelle, Transferencia, Efectivo, Binance Pay
+  requiereReferencia Boolean  @default(true)
+  activo             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  cuentas           CuentaMetodoPago[]
+  transaccionesPago TransaccionPago[]
+
+  @@map("metodos_pago")
+}
+
+model CuentaFinanciera {
+  id            String               @id @default(uuid())
+  nombre        String               // Ej: "Banesco Principal", "Caja Chica USD", "Zelle Corporativo"
+  tipo          TipoCuentaFinanciera @default(BANCO_NACIONAL)
+  bancoEntidad  String?
+  numeroCuenta  String?
+  titular       String?
+  identificador String?              // RIF/Cédula/Email/Teléfono asociado
+  monedaId      String
+  saldoActual   Decimal              @default(0) @db.Decimal(18, 2)
+  activa        Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  moneda            Moneda             @relation(fields: [monedaId], references: [id])
+  metodosPago       CuentaMetodoPago[]
+  transaccionesPago TransaccionPago[]
+
+  @@index([monedaId])
+  @@map("cuentas")
+}
+
+/// Tabla puente N:M entre Cuentas y Métodos de Pago
+model CuentaMetodoPago {
+  id           String   @id @default(uuid())
+  cuentaId     String
+  metodoPagoId String
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  cuenta     CuentaFinanciera @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  metodoPago MetodoPago       @relation(fields: [metodoPagoId], references: [id], onDelete: Cascade)
+
+  @@unique([cuentaId, metodoPagoId])
+  @@map("cuenta_metodos_pago")
+}
+
+/// Entidad puente/transaccional para soportar pagos mixtos, abonos y multimoneda
+/// tanto en Compras (Egresos) como en Salidas/Ventas (Ingresos)
+model TransaccionPago {
+  id                String        @id @default(uuid())
+  tipoFlujo         TipoFlujoPago // INGRESO (Venta) o EGRESO (Compra)
+  estado            EstadoPago    @default(VERIFICADO)
+  compraId          String?
+  ventaId           String?
+  cuentaId          String
+  metodoPagoId      String
+  monedaId          String
+  tasaCambioId      String?
+  usuarioId         String?
+  monto             Decimal       @db.Decimal(18, 2) // Monto en la moneda del pago
+  montoMonedaBase   Decimal       @db.Decimal(18, 2) // Equivalente en moneda principal del sistema
+  referencia        String?       // Número de comprobante / referencia bancaria
+  comprobanteUrl    String?
+  notas             String?
+  fechaPago         DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+
+  compra     Compra?          @relation(fields: [compraId], references: [id], onDelete: SetNull)
+  venta      Venta?           @relation(fields: [ventaId], references: [id], onDelete: SetNull)
+  cuenta     CuentaFinanciera @relation(fields: [cuentaId], references: [id])
+  metodoPago MetodoPago       @relation(fields: [metodoPagoId], references: [id])
+  moneda     Moneda           @relation(fields: [monedaId], references: [id])
+  tasaCambio TasaCambio?      @relation(fields: [tasaCambioId], references: [id])
+  usuario    Usuario?         @relation(fields: [usuarioId], references: [id])
+
+  @@index([compraId])
+  @@index([ventaId])
+  @@index([cuentaId])
+  @@index([fechaPago])
+  @@map("transacciones_pago")
+}
+
+// ============================================================================
+// 3. MÓDULO DE CATÁLOGO DE PRODUCTOS Y PROVEEDORES
+// ============================================================================
+
+model UnidadMedida {
+  id          String   @id @default(uuid())
+  nombre      String   @unique // Ej: Unidad, Kilogramo, Litro, Caja, Metro
+  abreviatura String   @unique // Ej: UND, KG, LT, CAJ, MT
+  permiteDecimales Boolean @default(false)
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  productos Producto[]
+
+  @@map("unidades_medida")
+}
+
+model Marca {
+  id          String   @id @default(uuid())
+  nombre      String   @unique
+  descripcion String?
+  logoUrl     String?
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  productos Producto[]
+
+  @@map("marcas")
+}
+
+model Categoria {
+  id               String   @id @default(uuid())
+  nombre           String
+  slug             String   @unique
+  descripcion      String?
+  categoriaPadreId String?  // Soporte para subcategorías jerárquicas
+  activa           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  categoriaPadre Categoria?  @relation("JerarquiaCategorias", fields: [categoriaPadreId], references: [id])
+  subcategorias  Categoria[] @relation("JerarquiaCategorias")
+  productos      Producto[]
+
+  @@index([categoriaPadreId])
+  @@map("categorias")
+}
+
+model Producto {
+  id               String    @id @default(uuid())
+  sku              String    @unique
+  codigoBarras     String?   @unique
+  nombre           String
+  descripcion      String?
+  unidadMedidaId   String
+  marcaId          String?
+  categoriaId      String
+  costoPromedio    Decimal   @default(0) @db.Decimal(18, 4)
+  precioVentaBase  Decimal   @db.Decimal(18, 2)
+  precioMayorista  Decimal?  @db.Decimal(18, 2)
+  stockMinimoAlerta Decimal  @default(0) @db.Decimal(18, 3)
+  imagenUrl        String?
+  activo           Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
+  marca        Marca?       @relation(fields: [marcaId], references: [id])
+  categoria    Categoria    @relation(fields: [categoriaId], references: [id])
+
+  proveedores           ProveedorProducto[]
+  inventarios           Inventario[]
+  movimientosInventario MovimientoInventario[]
+  detallesCompra        DetalleCompra[]
+  detallesVenta         DetalleVenta[]
+
+  @@index([nombre])
+  @@index([categoriaId])
+  @@index([marcaId])
+  @@map("productos")
+}
+
+model Proveedor {
+  id                  String    @id @default(uuid())
+  razonSocial         String
+  nombreComercial     String?
+  identificacionFiscal String?  @unique // RIF, NIT, RUC, Tax ID
+  nombreContacto      String?
+  telefono            String?
+  email               String?
+  direccion           String?
+  notas               String?
+  activo              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  productos        ProveedorProducto[]
+  compras          Compra[]
+  cuentasStreaming CuentaStreaming[]
+
+  @@map("proveedores")
+}
+
+/// Tabla puente N:M entre Proveedores y Productos
+model ProveedorProducto {
+  id                String   @id @default(uuid())
+  proveedorId       String
+  productoId        String
+  skuProveedor      String?  // Código con el que el proveedor identifica el producto
+  ultimoCosto       Decimal? @db.Decimal(18, 4)
+  esProveedorPrincipal Boolean @default(false)
+  updatedAt         DateTime @updatedAt
+
+  proveedor Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  producto  Producto  @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@unique([proveedorId, productoId])
+  @@index([productoId])
+  @@map("proveedor_productos")
+}
+
+// ============================================================================
+// 4. MÓDULO DE COMPRAS E INVENTARIO MULTIALMACÉN
+// ============================================================================
+
+model Ubicacion {
+  id               String   @id @default(uuid())
+  codigo           String   @unique // Ej: "ALM-PRINCIPAL", "TIENDA-01", "ESTANTE-A1"
+  nombre           String
+  descripcion      String?
+  direccion        String?
+  ubicacionPadreId String?  // Permite jerarquía: Sucursal -> Almacén -> Pasillo -> Estante
+  activa           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  ubicacionPadre Ubicacion?  @relation("JerarquiaUbicaciones", fields: [ubicacionPadreId], references: [id])
+  sububicaciones Ubicacion[] @relation("JerarquiaUbicaciones")
+
+  inventarios    Inventario[]
+  detallesCompra DetalleCompra[]
+
+  @@map("ubicaciones")
+}
+
+/// Representa el Stock actual de un Producto en una Ubicación específica
+model Inventario {
+  id                String   @id @default(uuid())
+  productoId        String
+  ubicacionId       String
+  cantidadActual    Decimal  @default(0) @db.Decimal(18, 3)
+  cantidadReservada Decimal  @default(0) @db.Decimal(18, 3) // Stock comprometido en ventas pendientes
+  ubicacionEspecifica String? // Ej: "Nivel 2, Gaveta 4"
+  updatedAt         DateTime @updatedAt
+
+  producto  Producto  @relation(fields: [productoId], references: [id])
+  ubicacion Ubicacion @relation(fields: [ubicacionId], references: [id])
+
+  movimientos   MovimientoInventario[]
+  detallesVenta DetalleVenta[]
+
+  @@unique([productoId, ubicacionId])
+  @@index([ubicacionId])
+  @@map("inventario")
+}
+
+/// Entidad de Kardex / Auditoría para rastrear cada entrada y salida del Inventario
+model MovimientoInventario {
+  id              String                   @id @default(uuid())
+  inventarioId    String
+  productoId      String
+  tipoMovimiento  TipoMovimientoInventario
+  cantidad        Decimal                  @db.Decimal(18, 3)
+  stockAnterior   Decimal                  @db.Decimal(18, 3)
+  stockResultante Decimal                  @db.Decimal(18, 3)
+  costoUnitario   Decimal?                 @db.Decimal(18, 4)
+  detalleCompraId String?
+  detalleVentaId  String?
+  usuarioId       String?
+  motivo          String?
+  fechaMovimiento DateTime                 @default(now())
+
+  inventario    Inventario     @relation(fields: [inventarioId], references: [id])
+  producto      Producto       @relation(fields: [productoId], references: [id])
+  detalleCompra DetalleCompra? @relation(fields: [detalleCompraId], references: [id])
+  detalleVenta  DetalleVenta?  @relation(fields: [detalleVentaId], references: [id])
+  usuario       Usuario?       @relation(fields: [usuarioId], references: [id])
+
+  @@index([inventarioId, fechaMovimiento])
+  @@index([productoId])
+  @@map("movimientos_inventario")
+}
+
+model Compra {
+  id                String       @id @default(uuid())
+  numeroOrden       String       @unique
+  numeroFacturaProv String?      // Número de factura o nota de entrega del proveedor
+  proveedorId       String
+  usuarioId         String?
+  monedaId          String
+  tasaCambioId      String?
+  tasaCambioValor   Decimal      @default(1) @db.Decimal(18, 6) // Snapshot histórico de la tasa al momento de comprar
+  estado            EstadoCompra @default(PENDIENTE)
+  subtotal          Decimal      @db.Decimal(18, 2)
+  impuestos         Decimal      @default(0) @db.Decimal(18, 2)
+  descuento         Decimal      @default(0) @db.Decimal(18, 2)
+  total             Decimal      @db.Decimal(18, 2)
+  totalPagado       Decimal      @default(0) @db.Decimal(18, 2)
+  fechaCompra       DateTime     @default(now())
+  fechaVencimiento  DateTime?    // Para compras a crédito
+  notas             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  proveedor  Proveedor   @relation(fields: [proveedorId], references: [id])
+  usuario    Usuario?    @relation(fields: [usuarioId], references: [id])
+  moneda     Moneda      @relation(fields: [monedaId], references: [id])
+  tasaCambio TasaCambio? @relation(fields: [tasaCambioId], references: [id])
+
+  detalles         DetalleCompra[]
+  pagos            TransaccionPago[]
+  cuentasStreaming CuentaStreaming[] // Si la compra fue de lotes de cuentas de streaming
+
+  @@index([proveedorId])
+  @@index([fechaCompra])
+  @@index([estado])
+  @@map("compras")
+}
+
+/// Tabla puente de líneas de compra (conecta Compra con Productos, Servicios y Ubicación de entrada)
+model DetalleCompra {
+  id                 String   @id @default(uuid())
+  compraId           String
+  productoId         String?  // Opcional si se compró un lote de servicio/licencias
+  servicioId         String?  // Opcional si se compró saldo/cuentas de un servicio
+  ubicacionDestinoId String?  // A qué almacén/ubicación ingresa esta línea de compra
+  descripcion        String?
+  cantidad           Decimal  @db.Decimal(18, 3)
+  cantidadRecibida   Decimal  @default(0) @db.Decimal(18, 3)
+  costoUnitario      Decimal  @db.Decimal(18, 4)
+  impuestoPorcentaje Decimal  @default(0) @db.Decimal(5, 2)
+  descuento          Decimal  @default(0) @db.Decimal(18, 2)
+  subtotal           Decimal  @db.Decimal(18, 2)
+
+  compra           Compra     @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  producto         Producto?  @relation(fields: [productoId], references: [id])
+  servicio         Servicio?  @relation(fields: [servicioId], references: [id])
+  ubicacionDestino Ubicacion? @relation(fields: [ubicacionDestinoId], references: [id])
+
+  movimientosInventario MovimientoInventario[]
+
+  @@index([compraId])
+  @@index([productoId])
+  @@map("detalles_compra")
+}
+
+// ============================================================================
+// 5. MÓDULO DE SERVICIOS, CUENTAS DE STREAMING Y SUSCRIPCIONES
+// ============================================================================
+
+model TipoServicio {
+  id          String   @id @default(uuid())
+  nombre      String   @unique // Ej: "Streaming Video", "Streaming Música", "Licencia Software", "Soporte Técnico"
+  descripcion String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  servicios Servicio[]
+
+  @@map("tipo_servicios")
+}
+
+model Servicio {
+  id                      String   @id @default(uuid())
+  codigo                  String   @unique
+  nombre                  String   // Ej: "Netflix Pantalla Individual", "Netflix Cuenta Completa", "Spotify Duo"
+  descripcion             String?
+  tipoServicioId          String
+  precioBase              Decimal  @db.Decimal(18, 2)
+  duracionDiasPorDefecto  Int?     @default(30) // Para servicios recurrentes / suscripciones
+  requiereCuentaStreaming Boolean  @default(false)
+  esVentaCuentaCompleta   Boolean  @default(false)
+  activo                  Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  tipoServicio TipoServicio @relation(fields: [tipoServicioId], references: [id])
+
+  cuentasStreaming CuentaStreaming[]
+  suscripciones    Suscripcion[]
+  detallesCompra   DetalleCompra[]
+  detallesVenta    DetalleVenta[]
+
+  @@index([tipoServicioId])
+  @@map("servicios")
+}
+
+model CuentaStreaming {
+  id                   String                @id @default(uuid())
+  servicioId           String
+  proveedorId          String?
+  compraId             String?               // Lote de compra donde se adquirió la cuenta
+  emailAcceso          String
+  passwordAcceso       String                // Recomendado: encriptar en capa de aplicación
+  pinSeguridadCuenta   String?
+  capacidadPerfiles    Int                   @default(1) // Ej: 5 pantallas para Netflix, 1 para cuenta completa
+  perfilesOcupados     Int                   @default(0)
+  costoCuenta          Decimal?              @db.Decimal(18, 2)
+  fechaInicioProveedor DateTime              @default(now())
+  fechaCorteProveedor  DateTime              // Fecha en que vence la cuenta madre ante el proveedor
+  estado               EstadoCuentaStreaming @default(DISPONIBLE)
+  notas                String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  servicio  Servicio   @relation(fields: [servicioId], references: [id])
+  proveedor Proveedor? @relation(fields: [proveedorId], references: [id])
+  compra    Compra?    @relation(fields: [compraId], references: [id])
+
+  perfiles      PerfilStreaming[]
+  suscripciones Suscripcion[]
+
+  @@index([servicioId, estado])
+  @@index([fechaCorteProveedor])
+  @@map("cuenta_streaming")
+}
+
+/// Entidad extra clave para dividir una Cuenta_streaming en pantallas/perfiles individuales
+model PerfilStreaming {
+  id                String   @id @default(uuid())
+  cuentaStreamingId String
+  numeroSlot        Int      // Ej: Perfil 1, Perfil 2, Perfil 3...
+  nombrePerfil      String?  // Nombre asignado dentro de la app de streaming
+  pinPerfil         String?  // PIN de 4 dígitos del perfil
+  ocupado           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  cuentaStreaming CuentaStreaming @relation(fields: [cuentaStreamingId], references: [id], onDelete: Cascade)
+  suscripciones   Suscripcion[]
+
+  @@unique([cuentaStreamingId, numeroSlot])
+  @@map("perfiles_streaming")
+}
+
+model Cliente {
+  id              String    @id @default(uuid())
+  nombre          String
+  apellido        String?
+  documentoId     String?   @unique // Cédula / RIF / DNI / Pasaporte
+  telefono        String?   // Clave para envío de recordatorios por WhatsApp
+  email           String?
+  direccion       String?
+  notas           String?
+  activo          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  ventas        Venta[]
+  suscripciones Suscripcion[]
+
+  @@index([telefono])
+  @@index([nombre])
+  @@map("clientes")
+}
+
+model Suscripcion {
+  id                 String            @id @default(uuid())
+  codigo             String            @unique
+  clienteId          String
+  servicioId         String
+  cuentaStreamingId  String?           // Cuenta matriz asignada
+  perfilStreamingId  String?           // Pantalla/perfil específico asignado (si no es cuenta completa)
+  precioAcordado     Decimal           @db.Decimal(18, 2)
+  fechaInicio        DateTime          @default(now())
+  fechaVencimiento   DateTime          // Fecha de corte del cliente
+  renovacionAuto     Boolean           @default(true)
+  estado             EstadoSuscripcion @default(ACTIVA)
+  notas              String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  cliente         Cliente          @relation(fields: [clienteId], references: [id])
+  servicio        Servicio         @relation(fields: [servicioId], references: [id])
+  cuentaStreaming CuentaStreaming? @relation(fields: [cuentaStreamingId], references: [id])
+  perfilStreaming PerfilStreaming? @relation(fields: [perfilStreamingId], references: [id])
+
+  // Historial de todas las ventas (alta inicial y renovaciones mensuales) de esta suscripción
+  detallesVenta DetalleVenta[]
+
+  @@index([clienteId])
+  @@index([estado, fechaVencimiento])
+  @@index([cuentaStreamingId])
+  @@map("suscripciones")
+}
+
+// ============================================================================
+// 6. MÓDULO DE SALIDAS / VENTAS Y FACTURACIÓN HÍBRIDA
+// ============================================================================
+
+model Venta {
+  id              String      @id @default(uuid())
+  numeroDocumento String      @unique // Número correlativo de factura / nota de salida
+  tipoSalida      TipoSalida  @default(VENTA)
+  estado          EstadoVenta @default(COMPLETADA)
+  clienteId       String?     // Opcional para salidas internas o ventas de mostrador anónimas
+  usuarioId       String?     // Vendedor o responsable que registró la salida
+  monedaId        String
+  tasaCambioId    String?
+  tasaCambioValor Decimal     @default(1) @db.Decimal(18, 6) // Snapshot histórico de la tasa al momento de la venta
+  subtotal        Decimal     @db.Decimal(18, 2)
+  impuestos       Decimal     @default(0) @db.Decimal(18, 2)
+  descuento       Decimal     @default(0) @db.Decimal(18, 2)
+  total           Decimal     @db.Decimal(18, 2)
+  totalCobrado    Decimal     @default(0) @db.Decimal(18, 2)
+  fechaSalida     DateTime    @default(now())
+  notas           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  cliente    Cliente?    @relation(fields: [clienteId], references: [id])
+  usuario    Usuario?    @relation(fields: [usuarioId], references: [id])
+  moneda     Moneda      @relation(fields: [monedaId], references: [id])
+  tasaCambio TasaCambio? @relation(fields: [tasaCambioId], references: [id])
+
+  detalles DetalleVenta[]
+  pagos    TransaccionPago[]
+
+  @@index([clienteId])
+  @@index([fechaSalida])
+  @@index([estado])
+  @@map("salidas_ventas")
+}
+
+/// Tabla puente polimórfica que permite vender en una misma Salida/Venta:
+/// 1) Productos físicos del Inventario, 2) Servicios puntuales y 3) Altas/Renovaciones de Suscripciones
+model DetalleVenta {
+  id                 String        @id @default(uuid())
+  ventaId            String
+  tipoItem           TipoItemVenta
+  inventarioId       String?       // Si es PRODUCTO: de qué lote/ubicación de inventario sale
+  productoId         String?       // Si es PRODUCTO: referencia directa al producto
+  servicioId         String?       // Si es SERVICIO o SUSCRIPCION
+  suscripcionId      String?       // Si es el cobro de alta o renovación de una Suscripción
+  descripcion        String        // Descripción impresa en el recibo
+  cantidad           Decimal       @default(1) @db.Decimal(18, 3)
+  precioUnitario     Decimal       @db.Decimal(18, 2)
+  costoUnitarioHist  Decimal?      @db.Decimal(18, 4) // Para calcular margen de ganancia real
+  descuento          Decimal       @default(0) @db.Decimal(18, 2)
+  impuestoPorcentaje Decimal       @default(0) @db.Decimal(5, 2)
+  subtotal           Decimal       @db.Decimal(18, 2)
+
+  venta       Venta        @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  inventario  Inventario?  @relation(fields: [inventarioId], references: [id])
+  producto    Producto?    @relation(fields: [productoId], references: [id])
+  servicio    Servicio?    @relation(fields: [servicioId], references: [id])
+  suscripcion Suscripcion? @relation(fields: [suscripcionId], references: [id])
+
+  movimientosInventario MovimientoInventario[]
+
+  @@index([ventaId])
+  @@index([productoId])
+  @@index([servicioId])
+  @@index([suscripcionId])
+  @@map("detalles_venta")
+}
