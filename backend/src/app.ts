@@ -1,13 +1,8 @@
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express } from 'express';
+import getHealth from '#routes/health.routes.js';
 
 const app: Express = express();
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello W0rld! updated');
-});
-
-app.get('/day', (req: Request, res: Response) => {
-  res.send('lunes');
-});
+app.use('/health', getHealth);
 
 export default app;
