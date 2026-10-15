@@ -1,8 +1,18 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Sistema para el control de ventas en casa.",
   "main": "index.js",
+  "type": "module",
+  "imports": {
+    "#config/*": "./src/config/*",
+    "#controllers/*": "./src/controllers/*",
+    "#middlewares/*": "./src/middlewares/*",
+    "#routes/*": "./src/routes/*",
+    "#services/*": "./src/services/*",
+    "#utils/*": "./src/utils/*",
+    "#*": "./src/*"
+  },
   "scripts": {
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -18,9 +28,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
-    "@prisma/client": "^7.10.0",
+    "@prisma/client": "6.4.1",
     "better-auth": "^1.7.7",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
@@ -36,7 +45,7 @@
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.10",
-    "prisma": "8.0.0-rc.22",
+    "prisma": "6.4.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "typescript-eslint": "^8.71.2"
