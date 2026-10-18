@@ -57,7 +57,9 @@ export const getBrands = async (
     const result = await getBrandsService({
       search: search as string,
       isActive:
-        isActive !== undefined ? isActive === 'true' || isActive === '1' : undefined,
+        isActive !== undefined
+          ? isActive === 'true' || isActive === '1'
+          : undefined,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       sortBy: sortBy as any,
