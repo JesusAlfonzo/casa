@@ -153,7 +153,10 @@ export const signUpUser = async (
     where: { email },
   });
   if (existingEmail) {
-    throw new AuthError('El correo electrónico ya se encuentra registrado', 409);
+    throw new AuthError(
+      'El correo electrónico ya se encuentra registrado',
+      409
+    );
   }
 
   // Validar si el username ya existe en la base de datos
@@ -439,7 +442,9 @@ export const updateProfile = async (
   }
 
   if (dto.username !== undefined) {
-    const trimmedUsername = dto.username ? dto.username.trim().toLowerCase() : null;
+    const trimmedUsername = dto.username
+      ? dto.username.trim().toLowerCase()
+      : null;
     if (trimmedUsername) {
       if (trimmedUsername.length < 3) {
         throw new AuthError(

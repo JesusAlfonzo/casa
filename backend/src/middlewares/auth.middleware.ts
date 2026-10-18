@@ -16,13 +16,15 @@ export const requireAuth = async (
 
     if (!sessionData) {
       return res.status(401).json({
-        error: 'No autorizado. Debe iniciar sesión para acceder a este recurso.',
+        error:
+          'No autorizado. Debe iniciar sesión para acceder a este recurso.',
       });
     }
 
     if (!sessionData.user.isActive) {
       return res.status(403).json({
-        error: 'Acceso denegado. La cuenta de usuario se encuentra desactivada.',
+        error:
+          'Acceso denegado. La cuenta de usuario se encuentra desactivada.',
       });
     }
 
