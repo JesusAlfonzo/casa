@@ -54,15 +54,26 @@ export const getCategories = async (
   next: NextFunction
 ) => {
   try {
-    const { search, isActive, parentCategoryId, isRoot, page, limit, sortBy, sortOrder } =
-      req.query;
+    const {
+      search,
+      isActive,
+      parentCategoryId,
+      isRoot,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    } = req.query;
 
     const result = await getCategoriesService({
       search: search as string,
       isActive:
-        isActive !== undefined ? isActive === 'true' || isActive === '1' : undefined,
+        isActive !== undefined
+          ? isActive === 'true' || isActive === '1'
+          : undefined,
       parentCategoryId: parentCategoryId as string,
-      isRoot: isRoot !== undefined ? isRoot === 'true' || isRoot === '1' : undefined,
+      isRoot:
+        isRoot !== undefined ? isRoot === 'true' || isRoot === '1' : undefined,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       sortBy: sortBy as any,

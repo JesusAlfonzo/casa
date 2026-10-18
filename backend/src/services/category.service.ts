@@ -47,10 +47,11 @@ const checkCircularReference = async (
     if (currentParentId === categoryId) {
       return true; // Hay ciclo
     }
-    const parent: { parentCategoryId: string | null } | null = await prisma.category.findUnique({
-      where: { id: currentParentId },
-      select: { parentCategoryId: true },
-    });
+    const parent: { parentCategoryId: string | null } | null =
+      await prisma.category.findUnique({
+        where: { id: currentParentId },
+        select: { parentCategoryId: true },
+      });
     currentParentId = parent?.parentCategoryId || null;
   }
 
@@ -73,7 +74,10 @@ export const createCategory = async (
   const slug = dto.slug?.trim() ? generateSlug(dto.slug) : generateSlug(name);
 
   if (!slug) {
-    throw new CategoryError('No se pudo generar un slug válido para la categoría', 400);
+    throw new CategoryError(
+      'No se pudo generar un slug válido para la categoría',
+      400
+    );
   }
 
   // Validar unicidad del slug
@@ -82,7 +86,10 @@ export const createCategory = async (
   });
 
   if (existingSlug) {
-    throw new CategoryError(`Ya existe una categoría con el slug "${slug}"`, 409);
+    throw new CategoryError(
+      `Ya existe una categoría con el slug "${slug}"`,
+      409
+    );
   }
 
   // Si se asigna categoría padre, verificar que exista
@@ -313,7 +320,10 @@ export const updateCategory = async (
   if (dto.name !== undefined) {
     const trimmedName = dto.name.trim();
     if (!trimmedName) {
-      throw new CategoryError('El nombre de la categoría no puede estar vacío', 400);
+      throw new CategoryError(
+        'El nombre de la categoría no puede estar vacío',
+        400
+      );
     }
     updateData.name = trimmedName;
 
@@ -379,7 +389,10 @@ export const updateCategory = async (
         where: { id: parentId },
       });
       if (!parentExists) {
-        throw new CategoryError('La categoría padre especificada no existe', 404);
+        throw new CategoryError(
+          'La categoría padre especificada no existe',
+          404
+        );
       }
 
       // Validar que no se forme un ciclo en la jerarquía
