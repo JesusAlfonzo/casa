@@ -16,7 +16,9 @@ if (fs.existsSync(envPathInCwd)) {
 export const ENV = {
   PORT: process.env.PORT || 3000,
   DATABASE_URL: process.env.DATABASE_URL,
-  BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET || 'casa-hybrid-erp-better-auth-secret-key-2026',
+  BETTER_AUTH_SECRET:
+    process.env.BETTER_AUTH_SECRET ||
+    'casa-hybrid-erp-better-auth-secret-key-2026',
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
   JWT_SECRET: process.env.JWT_SECRET,
   EXP_TOKEN: process.env.EXP_TOKEN,
