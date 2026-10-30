@@ -4,6 +4,7 @@ import {
   type UpdateSupplierDTO,
   type SupplierQueryDTO,
   type SupplierWithCount,
+  type SupplierDetail,
   type PaginatedSuppliersResult,
 } from '#types/supplier.types.js';
 
@@ -157,11 +158,11 @@ export const getSuppliers = async (
 };
 
 /**
- * Obtener detalle de un proveedor por su ID único.
+ * Obtener detalle de un proveedor por su ID único incluyendo productos vinculados y compras recientes.
  */
 export const getSupplierById = async (
   id: string
-): Promise<SupplierWithCount> => {
+): Promise<SupplierDetail> => {
   if (!id) {
     throw new SupplierError('El ID del proveedor es requerido', 400);
   }
@@ -169,6 +170,32 @@ export const getSupplierById = async (
   const supplier = await prisma.supplier.findUnique({
     where: { id },
     include: {
+      products: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+              baseSalePrice: true,
+              averageCost: true,
+            },
+          },
+        },
+      },
+      purchases: {
+        take: 10,
+        orderBy: { purchasedAt: 'desc' },
+        include: {
+          currency: {
+            select: {
+              id: true,
+              code: true,
+              symbol: true,
+            },
+          },
+        },
+      },
       _count: {
         select: {
           products: true,
@@ -183,7 +210,7 @@ export const getSupplierById = async (
     throw new SupplierError('Proveedor no encontrado', 404);
   }
 
-  return supplier;
+  return supplier as unknown as SupplierDetail;
 };
 
 /**

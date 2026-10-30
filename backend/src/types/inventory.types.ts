@@ -1,4 +1,4 @@
-import { Prisma, InventoryMovementType } from '@prisma/client';
+import { Prisma, type InventoryMovementType } from '@prisma/client';
 
 export interface AdjustStockDTO {
   productId: string;

@@ -1,0 +1,136 @@
+export const inventorySchemas = {
+  Location: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Almacén Principal' },
+      code: { type: 'string', example: 'ALM-CENTRAL' },
+      type: {
+        type: 'string',
+        enum: ['WAREHOUSE', 'STORE', 'AISLE', 'SHELF'],
+        example: 'WAREHOUSE',
+      },
+      parentId: { type: 'string', format: 'uuid', nullable: true },
+      isActive: { type: 'boolean', example: true },
+      createdAt: { type: 'string', format: 'date-time' },
+      updatedAt: { type: 'string', format: 'date-time' },
+    },
+  },
+  CreateLocationDTO: {
+    type: 'object',
+    required: ['name', 'code', 'type'],
+    properties: {
+      name: { type: 'string', example: 'Almacén Principal' },
+      code: { type: 'string', example: 'ALM-CENTRAL' },
+      type: {
+        type: 'string',
+        enum: ['WAREHOUSE', 'STORE', 'AISLE', 'SHELF'],
+        example: 'WAREHOUSE',
+      },
+      parentId: { type: 'string', format: 'uuid', nullable: true },
+      isActive: { type: 'boolean', default: true },
+    },
+  },
+  UpdateLocationDTO: {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      code: { type: 'string' },
+      type: {
+        type: 'string',
+        enum: ['WAREHOUSE', 'STORE', 'AISLE', 'SHELF'],
+      },
+      parentId: { type: 'string', format: 'uuid', nullable: true },
+      isActive: { type: 'boolean' },
+    },
+  },
+  Inventory: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      productId: { type: 'string', format: 'uuid' },
+      locationId: { type: 'string', format: 'uuid' },
+      currentQuantity: { type: 'number', example: 34.0 },
+      reservedQuantity: { type: 'number', example: 2.0 },
+      availableQuantity: { type: 'number', example: 32.0 },
+      averageCost: { type: 'number', example: 280.0 },
+      minAlert: { type: 'number', nullable: true, example: 5 },
+      maxAlert: { type: 'number', nullable: true, example: 50 },
+      createdAt: { type: 'string', format: 'date-time' },
+      updatedAt: { type: 'string', format: 'date-time' },
+    },
+  },
+  StockAdjustmentDTO: {
+    type: 'object',
+    required: ['productId', 'locationId', 'type', 'quantity', 'reason'],
+    properties: {
+      productId: { type: 'string', format: 'uuid' },
+      locationId: { type: 'string', format: 'uuid' },
+      type: {
+        type: 'string',
+        enum: ['POSITIVE_ADJUSTMENT', 'NEGATIVE_ADJUSTMENT', 'WASTE'],
+        example: 'POSITIVE_ADJUSTMENT',
+      },
+      quantity: { type: 'number', example: 5.0 },
+      reason: {
+        type: 'string',
+        example: 'Conteo físico anual - sobrante verificado',
+      },
+    },
+  },
+  StockTransferDTO: {
+    type: 'object',
+    required: [
+      'productId',
+      'sourceLocationId',
+      'targetLocationId',
+      'quantity',
+      'reason',
+    ],
+    properties: {
+      productId: { type: 'string', format: 'uuid' },
+      sourceLocationId: { type: 'string', format: 'uuid' },
+      targetLocationId: { type: 'string', format: 'uuid' },
+      quantity: { type: 'number', example: 10.0 },
+      reason: { type: 'string', example: 'Reposición de vitrina de ventas' },
+    },
+  },
+  UpdateInventoryDetailsDTO: {
+    type: 'object',
+    properties: {
+      minAlert: { type: 'number', example: 5 },
+      maxAlert: { type: 'number', example: 60 },
+    },
+  },
+  InventoryMovement: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      inventoryId: { type: 'string', format: 'uuid' },
+      movementType: {
+        type: 'string',
+        enum: [
+          'PURCHASE_RECEIPT',
+          'SALE_DISPATCH',
+          'SALE_RETURN',
+          'PURCHASE_RETURN',
+          'TRANSFER_OUT',
+          'TRANSFER_IN',
+          'POSITIVE_ADJUSTMENT',
+          'NEGATIVE_ADJUSTMENT',
+          'WASTE',
+        ],
+        example: 'SALE_DISPATCH',
+      },
+      quantity: { type: 'number', example: -2.0 },
+      unitCost: { type: 'number', example: 280.0 },
+      totalCost: { type: 'number', example: -560.0 },
+      previousStock: { type: 'number', example: 34.0 },
+      resultingStock: { type: 'number', example: 32.0 },
+      referenceType: { type: 'string', nullable: true, example: 'SALE' },
+      referenceId: { type: 'string', nullable: true },
+      notes: { type: 'string', nullable: true },
+      createdAt: { type: 'string', format: 'date-time' },
+    },
+  },
+};

@@ -228,7 +228,7 @@ export const signUpUser = async (
   }
 
   return {
-    token: data.token,
+    token: data.token || data.session?.token,
     user: fullUser,
     setCookieHeaders,
   };
@@ -321,7 +321,7 @@ export const signInUser = async (
   }
 
   return {
-    token: data.token,
+    token: data.token || data.session?.token,
     user: fullUser,
     setCookieHeaders,
   };

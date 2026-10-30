@@ -4,8 +4,12 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "dev": "pnpm --filter backend dev",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "pnpm --parallel --filter frontend --filter backend dev",
+    "dev:front": "pnpm --filter frontend dev",
+    "dev:back": "pnpm --filter backend dev",
+    "build:front": "pnpm --filter frontend build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm --filter backend test"
   },
   "keywords": [],
   "author": "",

@@ -1,4 +1,4 @@
-import { Prisma, PurchaseStatus } from '@prisma/client';
+import { Prisma, type PurchaseStatus } from '@prisma/client';
 
 export interface CreatePurchaseItemDTO {
   productId?: string | null;

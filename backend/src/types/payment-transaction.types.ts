@@ -1,4 +1,4 @@
-import { Prisma, PaymentFlowType, PaymentStatus } from '@prisma/client';
+import { Prisma, type PaymentFlowType, type PaymentStatus } from '@prisma/client';
 
 export interface CreatePaymentTransactionDTO {
   flowType: PaymentFlowType;

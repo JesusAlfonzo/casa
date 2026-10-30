@@ -53,6 +53,34 @@ export interface SupplierWithCount {
   };
 }
 
+export interface SupplierDetail extends SupplierWithCount {
+  products?: Array<{
+    id: string;
+    supplierSku: string | null;
+    lastCost: any;
+    isPrimarySupplier: boolean;
+    product: {
+      id: string;
+      sku: string;
+      name: string;
+      baseSalePrice: any;
+      averageCost: any;
+    };
+  }>;
+  purchases?: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    total: any;
+    purchasedAt: Date;
+    currency: {
+      id: string;
+      code: string;
+      symbol: string;
+    };
+  }>;
+}
+
 export interface PaginatedSuppliersResult {
   data: SupplierWithCount[];
   meta: {

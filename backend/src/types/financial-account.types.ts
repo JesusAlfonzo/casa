@@ -1,4 +1,4 @@
-import { Prisma, FinancialAccountType } from '@prisma/client';
+import { Prisma, type FinancialAccountType } from '@prisma/client';
 
 export interface CreateFinancialAccountDTO {
   name: string;

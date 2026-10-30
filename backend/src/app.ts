@@ -30,6 +30,7 @@ import saleRoutes from '#routes/sale.routes.js';
 import userRoutes from '#routes/user.routes.js';
 import roleRoutes from '#routes/role.routes.js';
 import permissionRoutes from '#routes/permission.routes.js';
+import reportRoutes from '#routes/report.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec, swaggerUiOptions } from '#docs/swagger.js';
 
@@ -78,6 +79,7 @@ app.use('/api/streaming-profiles', streamingProfileRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/sales', saleRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Middleware global de captura de errores
 app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
