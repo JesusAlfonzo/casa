@@ -62,7 +62,7 @@ export function CategoryFormModal({
           name: category.name || "",
           slug: category.slug || "",
           description: category.description || "",
-          parentId: category.parentId || "",
+          parentId: category.parentId || category.parentCategoryId || "",
           isActive: category.isActive ?? true,
         }
       : emptyForm
@@ -78,7 +78,7 @@ export function CategoryFormModal({
             name: category.name || "",
             slug: category.slug || "",
             description: category.description || "",
-            parentId: category.parentId || "",
+            parentId: category.parentId || category.parentCategoryId || "",
             isActive: category.isActive ?? true,
           }
         : emptyForm
@@ -112,10 +112,11 @@ export function CategoryFormModal({
   const saveMutation = useMutation({
     mutationFn: async (payload: FormState) => {
       const body = {
-        code: payload.code.trim().toUpperCase(),
+        code: payload.code.trim().toUpperCase() || undefined,
         name: payload.name.trim(),
         slug: payload.slug.trim().toLowerCase(),
         description: payload.description.trim() || undefined,
+        parentCategoryId: payload.parentId || null,
         parentId: payload.parentId || null,
         isActive: payload.isActive,
       };
@@ -153,10 +154,6 @@ export function CategoryFormModal({
       setErrorMsg("El nombre de la categoría es obligatorio.");
       return;
     }
-    if (!formData.code.trim()) {
-      setErrorMsg("El código de la categoría es obligatorio.");
-      return;
-    }
     setErrorMsg(null);
     saveMutation.mutate(formData);
   };
@@ -168,7 +165,7 @@ export function CategoryFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl p-6 sm:p-7">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Layers className="h-5 w-5 text-primary" />

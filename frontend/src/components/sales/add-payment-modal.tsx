@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import {
@@ -41,7 +41,7 @@ export function AddPaymentModal({
   const queryClient = useQueryClient();
 
   const total = Number(sale?.total || 0);
-  const totalPaid = Number(sale?.totalPaid || 0);
+  const totalPaid = Number(sale?.totalCollected ?? sale?.totalPaid ?? 0);
   const pendingUSD = Math.max(0, total - totalPaid);
 
   const [financialAccountId, setFinancialAccountId] = useState(
@@ -81,6 +81,7 @@ export function AddPaymentModal({
         paymentMethodId: paymentMethodId || paymentMethods[0].id,
         amount: isVES ? Number(amountInVES) : amount,
         currencyId: selectedAccount?.currencyId,
+        exchangeRateValue: exchangeRate,
         reference: reference || undefined,
         notes: notes || undefined,
       };
@@ -103,7 +104,7 @@ export function AddPaymentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl p-6 sm:p-7">
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <CreditCard className="h-5 w-5" />

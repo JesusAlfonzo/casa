@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import {
@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   ShieldCheck,
   Shield,
@@ -43,6 +44,9 @@ export default function RolesAdminPage() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
+  // Retraso de 400ms para evitar consultas en cada tecla presionada
+  const debouncedSearch = useDebounce(search, 400);
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<RoleDetail | null>(null);
@@ -52,15 +56,15 @@ export default function RolesAdminPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<RoleDetail | null>(null);
 
-  // Fetch roles
+  // Fetch roles con debouncedSearch
   const { data: rolesData, isLoading: loadingRoles, refetch } = useQuery<{
     success: boolean;
     data: RoleDetail[];
   }>({
-    queryKey: ["admin-roles", search],
+    queryKey: ["admin-roles", debouncedSearch],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (search.trim()) params.append("search", search.trim());
+      if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
       return api.get(`/roles?${params.toString()}`);
     },
   });
@@ -76,6 +80,24 @@ export default function RolesAdminPage() {
 
   const roles = rolesData?.data || [];
   const moduleGroups = moduleGroupsData?.data || [];
+
+  // Filtrado reactivo en el catálogo de permisos según el término con debounce
+  const filteredModuleGroups = useMemo(() => {
+    if (!debouncedSearch.trim()) return moduleGroups;
+    const term = debouncedSearch.toLowerCase().trim();
+    return moduleGroups
+      .map((group) => ({
+        ...group,
+        permissions: group.permissions.filter(
+          (p) =>
+            p.name.toLowerCase().includes(term) ||
+            p.code.toLowerCase().includes(term) ||
+            (p.description && p.description.toLowerCase().includes(term)) ||
+            group.module.toLowerCase().includes(term)
+        ),
+      }))
+      .filter((group) => group.permissions.length > 0);
+  }, [moduleGroups, debouncedSearch]);
 
   // Total permissions count
   const totalPermissionsCount = moduleGroups.reduce(
@@ -96,6 +118,7 @@ export default function RolesAdminPage() {
       queryClient.invalidateQueries({ queryKey: ["admin-roles-list"] });
       setDeleteDialogOpen(false);
       setRoleToDelete(null);
+      setSelectedRole(null);
     },
     onError: (err: unknown) => {
       toast.error((err as Error).message || "Error al eliminar el rol");
@@ -232,8 +255,11 @@ export default function RolesAdminPage() {
               placeholder="Buscar rol o permiso..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-xs"
+              className="pl-9 pr-8 h-9 text-xs"
             />
+            {search !== debouncedSearch && (
+              <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+            )}
           </div>
         </div>
 
@@ -252,6 +278,7 @@ export default function RolesAdminPage() {
               {roles.map((role) => {
                 const userCount = role._count?.users || 0;
                 const permCount = role.permissions?.length || 0;
+                const isProtectedAdmin = role.name === "ADMIN";
 
                 return (
                   <Card
@@ -332,11 +359,11 @@ export default function RolesAdminPage() {
                           <Edit className="h-3.5 w-3.5 mr-1" /> Editar
                         </Button>
 
-                        {!role.isSystem && (
+                        {!isProtectedAdmin ? (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={() => {
                               setRoleToDelete(role);
                               setDeleteDialogOpen(true);
@@ -344,6 +371,16 @@ export default function RolesAdminPage() {
                             title="Eliminar rol"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground/40 cursor-not-allowed"
+                            disabled
+                            title="El rol ADMIN es requerido por el sistema y no puede eliminarse"
+                          >
+                            <Lock className="h-3.5 w-3.5" />
                           </Button>
                         )}
                       </div>
@@ -371,8 +408,12 @@ export default function RolesAdminPage() {
                 <div className="flex h-40 items-center justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
+              ) : filteredModuleGroups.length === 0 ? (
+                <div className="rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
+                  No se encontraron permisos que coincidan con &ldquo;{debouncedSearch}&rdquo;.
+                </div>
               ) : (
-                moduleGroups.map((group) => (
+                filteredModuleGroups.map((group) => (
                   <div key={group.module} className="space-y-3">
                     <div className="flex items-center gap-2 border-b border-border pb-1.5">
                       <Badge variant="outline" className="font-mono text-xs">
@@ -430,11 +471,16 @@ export default function RolesAdminPage() {
           setRoleToEdit(selectedRole);
           setCreateModalOpen(true);
         }}
+        onDelete={() => {
+          setRoleToDelete(selectedRole);
+          setDeleteDialogOpen(true);
+          setDetailSheetOpen(false);
+        }}
       />
 
       {/* Delete Role Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md p-6">
           <DialogHeader>
             <div className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />

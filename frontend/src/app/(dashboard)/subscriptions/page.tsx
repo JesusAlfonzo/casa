@@ -26,6 +26,8 @@ import {
   TrendingUp,
   User,
   Tv,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +53,8 @@ export default function SubscriptionsPage() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusTab, setStatusTab] = useState<"ALL" | "EXPIRING" | "EXPIRED" | "ACTIVE">("ALL");
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -172,6 +176,9 @@ export default function SubscriptionsPage() {
       (sub.streamingAccount?.accessEmail && sub.streamingAccount.accessEmail.toLowerCase().includes(term))
     );
   });
+
+  const totalPages = Math.ceil(filteredSubs.length / limit) || 1;
+  const paginatedSubs = filteredSubs.slice((page - 1) * limit, page * limit);
 
   // WhatsApp payment reminder trigger
   const handleSendReminderWhatsApp = (sub: Subscription) => {
@@ -369,7 +376,10 @@ export default function SubscriptionsPage() {
           <Input
             placeholder="Buscar por cliente, teléfono, código o servicio..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
             className="pl-9 h-9 text-xs"
           />
         </div>
@@ -379,7 +389,10 @@ export default function SubscriptionsPage() {
             type="button"
             variant={statusTab === "ALL" ? "default" : "outline"}
             size="xs"
-            onClick={() => setStatusTab("ALL")}
+            onClick={() => {
+              setStatusTab("ALL");
+              setPage(1);
+            }}
             className="rounded-full text-xs px-2.5"
           >
             Todas ({subscriptions.length})
@@ -389,7 +402,10 @@ export default function SubscriptionsPage() {
             type="button"
             variant={statusTab === "EXPIRING" ? "default" : "outline"}
             size="xs"
-            onClick={() => setStatusTab("EXPIRING")}
+            onClick={() => {
+              setStatusTab("EXPIRING");
+              setPage(1);
+            }}
             className="rounded-full text-xs px-2.5 gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400 font-semibold"
           >
             <AlertTriangle className="h-3 w-3" />
@@ -400,7 +416,10 @@ export default function SubscriptionsPage() {
             type="button"
             variant={statusTab === "EXPIRED" ? "default" : "outline"}
             size="xs"
-            onClick={() => setStatusTab("EXPIRED")}
+            onClick={() => {
+              setStatusTab("EXPIRED");
+              setPage(1);
+            }}
             className="rounded-full text-xs px-2.5 gap-1 text-destructive font-semibold"
           >
             <span>Vencidas ({expiredCount})</span>
@@ -410,7 +429,10 @@ export default function SubscriptionsPage() {
             type="button"
             variant={statusTab === "ACTIVE" ? "default" : "outline"}
             size="xs"
-            onClick={() => setStatusTab("ACTIVE")}
+            onClick={() => {
+              setStatusTab("ACTIVE");
+              setPage(1);
+            }}
             className="rounded-full text-xs px-2.5"
           >
             Al Día
@@ -445,7 +467,7 @@ export default function SubscriptionsPage() {
         </div>
       ) : (
         <div className="rounded-md border border-border overflow-hidden">
-          <Table>
+          <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Código / Cliente</TableHead>
@@ -457,7 +479,7 @@ export default function SubscriptionsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSubs.map((sub) => {
+              {paginatedSubs.map((sub) => {
                 const exp = new Date(sub.expirationDate);
                 const daysRemaining = Math.ceil((exp.getTime() - nowTimestamp) / (1000 * 3600 * 24));
                 const isExpiringSoon = daysRemaining >= 0 && daysRemaining <= 3;
@@ -619,6 +641,33 @@ export default function SubscriptionsPage() {
               })}
             </TableBody>
           </Table>
+
+          {/* Subscriptions Pagination */}
+          <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-card">
+            <span className="text-xs text-muted-foreground">
+              Mostrando página {page} de {totalPages} ({filteredSubs.length} suscripciones)
+            </span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                disabled={page <= 1}
+                className="h-8 text-xs"
+              >
+                <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                disabled={page >= totalPages}
+                className="h-8 text-xs"
+              >
+                Siguiente <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

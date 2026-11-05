@@ -21,18 +21,22 @@ export interface Brand {
 
 export interface Category {
   id: string;
-  code: string;
+  code?: string;
   name: string;
   slug: string;
   description?: string | null;
+  parentCategoryId?: string | null;
   parentId?: string | null;
+  parentCategory?: { id: string; name: string; slug: string } | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
   parent?: Category | null;
+  subcategories?: Category[];
   children?: Category[];
   _count?: {
-    products: number;
+    products?: number;
+    subcategories?: number;
   };
 }
 
@@ -183,7 +187,10 @@ export interface Supplier {
 
 export type PurchaseStatus =
   | "DRAFT"
+  | "PENDING"
   | "ORDERED"
+  | "PARTIALLY_PAID"
+  | "PAID"
   | "PARTIALLY_RECEIVED"
   | "RECEIVED"
   | "CANCELLED";

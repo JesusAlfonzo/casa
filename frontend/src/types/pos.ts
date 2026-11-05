@@ -125,6 +125,7 @@ export interface SaleTransaction {
   taxAmount: number | string;
   discountAmount: number | string;
   total: number | string;
+  totalCollected?: number | string;
   totalPaid: number | string;
   soldAt: string;
   notes?: string | null;

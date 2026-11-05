@@ -23,15 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   Users,
   UserPlus,
@@ -39,7 +32,6 @@ import {
   UserX,
   Shield,
   Search,
-  MoreVertical,
   Eye,
   Lock,
   Unlock,
@@ -48,12 +40,16 @@ import {
   RefreshCw,
   Mail,
   Phone,
+  Loader2,
 } from "lucide-react";
 
 export default function UsersAdminPage() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
+  // Retraso de 400ms para evitar peticiones en cada tecla presionada
+  const debouncedSearch = useDebounce(search, 400);
+
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [page, setPage] = useState(1);
@@ -65,14 +61,14 @@ export default function UsersAdminPage() {
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserSummaryItem | null>(null);
 
-  // Fetch users
+  // Fetch users con debouncedSearch
   const { data: usersData, isLoading: loadingUsers, refetch } =
     useQuery<PaginatedUsersResponse>({
       queryKey: [
         "admin-users",
         page,
         limit,
-        search,
+        debouncedSearch,
         roleFilter,
         statusFilter,
       ],
@@ -81,7 +77,7 @@ export default function UsersAdminPage() {
           page: page.toString(),
           limit: limit.toString(),
         });
-        if (search.trim()) params.append("search", search.trim());
+        if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
         if (roleFilter !== "ALL") params.append("roleName", roleFilter);
         if (statusFilter === "ACTIVE") params.append("isActive", "true");
         if (statusFilter === "INACTIVE") params.append("isActive", "false");
@@ -107,6 +103,7 @@ export default function UsersAdminPage() {
     onSuccess: (res) => {
       toast.success(res?.message || "Estado de usuario actualizado");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["user-detail", selectedUser?.id] });
     },
     onError: (err: unknown) => {
       toast.error((err as Error).message || "Error al actualizar estado del usuario");
@@ -232,8 +229,11 @@ export default function UsersAdminPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-9 text-xs"
+                className="pl-9 pr-8 h-9 text-xs"
               />
+              {search !== debouncedSearch && (
+                <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -275,46 +275,58 @@ export default function UsersAdminPage() {
       {/* Users Table */}
       <Card className="border-border shadow-xs">
         <CardContent className="p-0">
-          <Table>
+          <Table className="min-w-[850px]">
             <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="text-xs font-semibold">Operador / Usuario</TableHead>
-                <TableHead className="text-xs font-semibold">Contacto</TableHead>
-                <TableHead className="text-xs font-semibold">Roles Asignados</TableHead>
-                <TableHead className="text-xs font-semibold text-center">Estado</TableHead>
-                <TableHead className="text-xs font-semibold">Último Acceso</TableHead>
-                <TableHead className="text-xs font-semibold text-right">Acciones</TableHead>
+              <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
+                <TableHead className="h-12 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Operador / Usuario
+                </TableHead>
+                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Contacto
+                </TableHead>
+                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Roles Asignados
+                </TableHead>
+                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
+                  Estado
+                </TableHead>
+                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Último Acceso
+                </TableHead>
+                <TableHead className="h-12 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">
+                  Acciones
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loadingUsers ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                  <TableCell colSpan={6} className="h-36 text-center text-xs text-muted-foreground">
                     <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
                     Cargando usuarios del sistema...
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                  <TableCell colSpan={6} className="h-36 text-center text-xs text-muted-foreground">
                     No se encontraron usuarios registrados con los filtros aplicados.
                   </TableCell>
                 </TableRow>
               ) : (
                 users.map((u) => {
                   return (
-                    <TableRow key={u.id} className="hover:bg-muted/30">
+                    <TableRow key={u.id} className="hover:bg-muted/20 transition-colors border-b border-border/60">
                       {/* Name & Avatar */}
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs">
+                      <TableCell className="py-4 px-5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm shadow-2xs">
                             {u.name ? u.name.charAt(0).toUpperCase() : "U"}
                           </div>
-                          <div>
-                            <div className="font-semibold text-foreground text-xs">
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-foreground text-sm leading-tight">
                               {u.name} {u.lastName || ""}
                             </div>
-                            <span className="text-[11px] font-mono text-muted-foreground block">
+                            <span className="text-xs font-mono text-muted-foreground block">
                               @{u.username || "sin_usuario"}
                             </span>
                           </div>
@@ -322,34 +334,38 @@ export default function UsersAdminPage() {
                       </TableCell>
 
                       {/* Contact */}
-                      <TableCell className="text-xs">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 text-foreground">
-                            <Mail className="h-3 w-3 text-muted-foreground" />
-                            <span>{u.email}</span>
+                      <TableCell className="py-4 px-4 text-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-foreground font-medium">
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="truncate max-w-[200px]">{u.email}</span>
                           </div>
-                          {u.phone && (
+                          {u.phone ? (
                             <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
-                              <Phone className="h-3 w-3" />
+                              <Phone className="h-3 w-3 shrink-0" />
                               <span>{u.phone}</span>
                             </div>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground/60 italic">
+                              Sin teléfono
+                            </span>
                           )}
                         </div>
                       </TableCell>
 
                       {/* Roles */}
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {u.roles.length === 0 ? (
-                            <span className="text-[11px] text-muted-foreground italic">
-                              Sin rol
+                      <TableCell className="py-4 px-4">
+                        <div className="flex flex-wrap gap-1.5 max-w-xs">
+                          {(!u.roles || u.roles.length === 0) ? (
+                            <span className="text-xs text-muted-foreground italic">
+                              Sin roles
                             </span>
                           ) : (
                             u.roles.map((r) => (
                               <Badge
                                 key={r.id}
                                 variant="outline"
-                                className="text-[10px] px-1.5 py-0 font-medium bg-background"
+                                className="text-[11px] px-2 py-0.5 font-medium bg-background/80 border-border/80"
                               >
                                 {r.name}
                               </Badge>
@@ -359,85 +375,81 @@ export default function UsersAdminPage() {
                       </TableCell>
 
                       {/* Status */}
-                      <TableCell className="text-center">
+                      <TableCell className="py-4 px-4 text-center">
                         <Badge
                           variant={u.isActive ? "secondary" : "destructive"}
-                          className="text-[10px]"
+                          className="text-[11px] font-medium px-2 py-0.5"
                         >
                           {u.isActive ? "ACTIVO" : "SUSPENDIDO"}
                         </Badge>
                       </TableCell>
 
                       {/* Last Login */}
-                      <TableCell className="text-xs text-muted-foreground">
-                        {u.lastLoginAt
-                          ? new Date(u.lastLoginAt).toLocaleString("es-VE", {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })
-                          : "Nunca"}
+                      <TableCell className="py-4 px-4 text-xs text-muted-foreground">
+                        {u.lastLoginAt ? (
+                          <div className="space-y-0.5">
+                            <span className="text-foreground font-medium block">
+                              {new Date(u.lastLoginAt).toLocaleDateString("es-VE")}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {new Date(u.lastLoginAt).toLocaleTimeString("es-VE", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/60 italic">Nunca</span>
+                        )}
                       </TableCell>
 
                       {/* Actions */}
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            }
-                          />
-                          <DropdownMenuContent align="end" className="text-xs">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedUser(u);
-                                setDetailSheetOpen(true);
-                              }}
-                            >
-                              <Eye className="mr-2 h-3.5 w-3.5 text-primary" />
-                              Ver Detalle Completo
-                            </DropdownMenuItem>
+                      <TableCell className="py-4 px-5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs shadow-2xs"
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setDetailSheetOpen(true);
+                            }}
+                            title="Ver Detalle Completo"
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1 text-primary" /> Ver
+                          </Button>
 
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedUser(u);
-                                setRolesModalOpen(true);
-                              }}
-                            >
-                              <Shield className="mr-2 h-3.5 w-3.5 text-primary" />
-                              Gestionar Roles
-                            </DropdownMenuItem>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs shadow-2xs"
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setRolesModalOpen(true);
+                            }}
+                            title="Gestionar Roles"
+                          >
+                            <Shield className="h-3.5 w-3.5 mr-1 text-primary" /> Roles
+                          </Button>
 
-                            <DropdownMenuSeparator />
-
-                            <DropdownMenuItem
-                              onClick={() => toggleStatusMutation.mutate(u.id)}
-                              className={
-                                u.isActive
-                                  ? "text-destructive focus:text-destructive"
-                                  : "text-emerald-600 focus:text-emerald-600"
-                              }
-                            >
-                              {u.isActive ? (
-                                <>
-                                  <Lock className="mr-2 h-3.5 w-3.5" />
-                                  Suspender Usuario
-                                </>
-                              ) : (
-                                <>
-                                  <Unlock className="mr-2 h-3.5 w-3.5" />
-                                  Activar Acceso
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 transition-colors ${
+                              u.isActive
+                                ? "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                            }`}
+                            onClick={() => toggleStatusMutation.mutate(u.id)}
+                            title={u.isActive ? "Suspender Usuario" : "Activar Acceso"}
+                          >
+                            {u.isActive ? (
+                              <Lock className="h-3.5 w-3.5" />
+                            ) : (
+                              <Unlock className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -447,7 +459,7 @@ export default function UsersAdminPage() {
           </Table>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          <div className="flex items-center justify-between border-t border-border px-6 py-4">
             <span className="text-xs text-muted-foreground">
               Mostrando página {page} de {totalPages} ({total} usuarios)
             </span>

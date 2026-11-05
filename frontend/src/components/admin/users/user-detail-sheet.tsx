@@ -67,10 +67,10 @@ export function UserDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader className="text-left">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto p-0">
+        <SheetHeader className="text-left px-6 py-5 border-b border-border bg-muted/20">
+          <div className="flex items-center justify-between pr-6">
+            <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm">
                 {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
               </div>
@@ -96,15 +96,15 @@ export function UserDetailSheet({
         </SheetHeader>
 
         {isLoading ? (
-          <div className="flex h-64 items-center justify-center">
+          <div className="flex h-64 items-center justify-center p-6">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : !user ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">
+          <div className="py-12 text-center text-sm text-muted-foreground p-6">
             No se encontró información del usuario.
           </div>
         ) : (
-          <div className="mt-6 space-y-6 text-xs">
+          <div className="p-6 space-y-6 text-xs">
             {/* Action Bar */}
             <div className="flex items-center gap-2">
               <Button
@@ -231,11 +231,11 @@ export function UserDetailSheet({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-foreground text-xs">
-                  Roles Asignados ({user.roles.length})
+                  Roles Asignados ({(user.roles || []).length})
                 </span>
               </div>
 
-              {user.roles.length === 0 ? (
+              {(!user.roles || user.roles.length === 0) ? (
                 <p className="text-[11px] text-muted-foreground italic">
                   Este usuario no tiene ningún rol asignado actualmente.
                 </p>
@@ -243,33 +243,33 @@ export function UserDetailSheet({
                 <div className="space-y-2">
                   {user.roles.map((userRole) => (
                     <div
-                      key={userRole.role.id}
+                      key={userRole.role?.id || Math.random().toString()}
                       className="rounded-lg border border-border p-2.5 bg-card"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-primary">
-                          {userRole.role.name}
+                          {userRole.role?.name || "Rol"}
                         </span>
-                        {userRole.role.isSystem && (
+                        {userRole.role?.isSystem && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
                             SISTEMA
                           </span>
                         )}
                       </div>
-                      {userRole.role.description && (
+                      {userRole.role?.description && (
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           {userRole.role.description}
                         </p>
                       )}
 
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {userRole.role.permissions?.map((p) => (
+                        {userRole.role?.permissions?.map((p) => (
                           <Badge
-                            key={p.permission.id}
+                            key={p.permission?.id || p.permission?.code}
                             variant="secondary"
                             className="text-[9px] px-1.5 py-0 font-mono"
                           >
-                            {p.permission.code}
+                            {p.permission?.code}
                           </Badge>
                         ))}
                       </div>
@@ -288,10 +288,10 @@ export function UserDetailSheet({
                 <div className="space-y-1">
                   {user.directPermissions.map((dp) => (
                     <div
-                      key={dp.permission.id}
+                      key={dp.permission?.id || dp.permission?.code}
                       className="flex items-center justify-between p-1.5 rounded bg-muted/40 text-[11px]"
                     >
-                      <span className="font-mono">{dp.permission.code}</span>
+                      <span className="font-mono">{dp.permission?.code}</span>
                       <Badge
                         variant={dp.isGranted ? "default" : "destructive"}
                         className="text-[9px]"

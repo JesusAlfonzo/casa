@@ -133,7 +133,7 @@ export function LocationFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg p-6 sm:p-7">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Warehouse className="h-5 w-5 text-primary" />

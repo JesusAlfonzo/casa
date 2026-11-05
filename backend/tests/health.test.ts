@@ -8,4 +8,10 @@ describe('Health & Server Check', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('status');
   });
+
+  it('GET /api/health debe retornar estado 200 y status OK', async () => {
+    const res = await request(app).get('/api/health');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('status');
+  });
 });

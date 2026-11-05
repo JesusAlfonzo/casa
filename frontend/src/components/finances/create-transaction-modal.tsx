@@ -150,7 +150,7 @@ export function CreateTransactionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div

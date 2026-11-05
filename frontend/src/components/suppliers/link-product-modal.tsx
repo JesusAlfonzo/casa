@@ -110,7 +110,7 @@ export function LinkProductModal({
         onOpenChange(val);
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-xl p-6 sm:p-7">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">

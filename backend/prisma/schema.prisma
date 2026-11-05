@@ -125,6 +125,7 @@ model User {
   sales               Sale[]
   inventoryMovements  InventoryMovement[]
   paymentTransactions PaymentTransaction[]
+  notifications       Notification[]
 
   @@index([email])
   @@map("user")
@@ -865,3 +866,58 @@ model SaleItem {
   @@index([subscriptionId])
   @@map("sale_items")
 }
+
+// ============================================================================
+// 10. NOTIFICATIONS & ALERTS
+// ============================================================================
+
+enum NotificationType {
+  STREAMING_EXPIRATION
+  STREAMING_CUTOFF
+  STOCK_LOW
+  STOCK_OUT
+  PAYMENT_OVERDUE
+  SYSTEM_ALERT
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Notification {
+  id        String               @id @default(uuid())
+  userId    String?
+  type      NotificationType
+  priority  NotificationPriority @default(MEDIUM)
+  title     String
+  message   String
+  link      String?
+  metadata  Json?
+  isRead    Boolean              @default(false)
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  user      User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  category  String   @default("SYSTEM") // STREAMING, FINANCE, INVENTORY, SYSTEM
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@map("system_settings")
+}
+
+

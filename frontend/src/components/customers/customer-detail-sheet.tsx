@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import { useClientNow } from "@/lib/utils";
+import { useClientNow, cn } from "@/lib/utils";
 import {
   type Customer,
   type CustomerWithDetails,
@@ -16,7 +16,6 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -46,6 +45,8 @@ import {
   Eye,
   KeyRound,
   Clock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface CustomerDetailSheetProps {
@@ -101,6 +102,46 @@ export function CustomerDetailSheet({
 
   const customer = customerRes?.data;
   const sales = salesRes?.items || [];
+
+  const [activeTab, setActiveTab] = useState<"financial" | "streaming" | "sales" | "info">("financial");
+  const [salesPage, setSalesPage] = useState(1);
+  const salesLimit = 5;
+  const salesTotalPages = Math.ceil(sales.length / salesLimit) || 1;
+  const paginatedSales = sales.slice(
+    (salesPage - 1) * salesLimit,
+    salesPage * salesLimit
+  );
+
+  const subscriptions = customer?.subscriptions || [];
+  const subsCount = subscriptions.length;
+  const salesCount = sales.length;
+
+  const tabItems = [
+    {
+      id: "financial" as const,
+      label: "Finanzas & POS",
+      icon: DollarSign,
+      badge: undefined,
+    },
+    {
+      id: "streaming" as const,
+      label: "Streaming",
+      icon: Tv,
+      badge: subsCount,
+    },
+    {
+      id: "sales" as const,
+      label: "Ventas",
+      icon: ShoppingCart,
+      badge: salesCount,
+    },
+    {
+      id: "info" as const,
+      label: "Detalles",
+      icon: FileText,
+      badge: undefined,
+    },
+  ];
 
   // Calculate financial totals
   const totalInvoicedUSD = sales.reduce(
@@ -161,7 +202,7 @@ export function CustomerDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto p-0"
+        className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto p-0"
       >
         {isLoadingCustomer && !customer ? (
           <div className="flex h-64 items-center justify-center">
@@ -174,30 +215,30 @@ export function CustomerDetailSheet({
         ) : (
           <div className="flex flex-col h-full">
             {/* Header / Hero */}
-            <div className="border-b border-border bg-card p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14 border-2 border-primary/20 bg-primary/10 text-primary font-bold text-lg">
+            <div className="border-b border-border bg-card p-6 sm:px-8 pr-14">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4 min-w-0">
+                  <Avatar className="h-14 w-14 border-2 border-primary/20 bg-primary/10 text-primary font-bold text-lg shrink-0">
                     <AvatarFallback>
                       {getInitials(customer.name, customer.lastName)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <SheetTitle className="text-xl font-bold text-foreground">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <SheetTitle className="text-xl font-bold text-foreground truncate">
                         {customer.name} {customer.lastName || ""}
                       </SheetTitle>
                       {customer.isActive ? (
                         <Badge
                           variant="outline"
-                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs"
+                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs shrink-0"
                         >
                           Activo
                         </Badge>
                       ) : (
                         <Badge
                           variant="outline"
-                          className="border-muted bg-muted text-muted-foreground text-xs"
+                          className="border-muted bg-muted text-muted-foreground text-xs shrink-0"
                         >
                           Inactivo
                         </Badge>
@@ -205,13 +246,13 @@ export function CustomerDetailSheet({
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       {customer.documentId && (
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-mono">
                           <IdCard className="h-3.5 w-3.5" />
                           {customer.documentId}
                         </span>
                       )}
                       {customer.phone && (
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-mono">
                           <Phone className="h-3.5 w-3.5" />
                           {customer.phone}
                         </span>
@@ -226,11 +267,11 @@ export function CustomerDetailSheet({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0 pt-2 sm:pt-0">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1.5 text-xs"
+                    className="gap-1.5 text-xs h-9 px-3.5 shadow-2xs"
                     onClick={() => onEditCustomer(customer)}
                   >
                     <Edit className="h-3.5 w-3.5" />
@@ -239,10 +280,10 @@ export function CustomerDetailSheet({
                   {customer.phone && (
                     <Button
                       size="sm"
-                      className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                      className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 px-3.5 shadow-2xs font-medium"
                       onClick={handleSendWhatsAppChat}
                     >
-                      <MessageCircle className="h-3.5 w-3.5" />
+                      <MessageCircle className="h-4 w-4" />
                       WhatsApp
                     </Button>
                   )}
@@ -251,7 +292,7 @@ export function CustomerDetailSheet({
 
               {/* Debt Alert if any */}
               {totalDebtUSD > 0 && (
-                <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-800 dark:text-amber-300">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                     <span>
@@ -263,10 +304,10 @@ export function CustomerDetailSheet({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 border-amber-500/40 bg-white/50 dark:bg-card text-xs hover:bg-amber-100 dark:hover:bg-amber-950/50"
+                      className="h-8 px-3 border-amber-500/40 bg-white dark:bg-card text-xs hover:bg-amber-100 dark:hover:bg-amber-950/50 shadow-2xs shrink-0"
                       onClick={handleSendDebtReminderWhatsApp}
                     >
-                      <Send className="mr-1 h-3 w-3" />
+                      <Send className="mr-1.5 h-3 w-3" />
                       Cobrar por WhatsApp
                     </Button>
                   )}
@@ -274,26 +315,68 @@ export function CustomerDetailSheet({
               )}
             </div>
 
-            {/* Content Tabs */}
-            <div className="flex-1 p-6">
-              <Tabs defaultValue="financial" className="w-full space-y-4">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="financial" className="text-xs">
-                    Finanzas & POS
-                  </TabsTrigger>
-                  <TabsTrigger value="streaming" className="text-xs">
-                    Streaming ({customer.subscriptions?.length || 0})
-                  </TabsTrigger>
-                  <TabsTrigger value="sales" className="text-xs">
-                    Ventas ({sales.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="info" className="text-xs">
-                    Detalles
-                  </TabsTrigger>
-                </TabsList>
+            {/* Content Tabs / Selection Cards */}
+            <div className="flex-1 p-6 sm:p-8 space-y-6">
+              {/* Interactive Selection Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 select-none">
+                {tabItems.map((item) => {
+                  const isSelected = activeTab === item.id;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveTab(item.id)}
+                      className={cn(
+                        "flex items-center justify-between gap-2 p-3 sm:py-3 sm:px-3.5 rounded-xl border text-left transition-all duration-150 cursor-pointer outline-none shadow-2xs",
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary dark:bg-white/10 dark:border-white/40 dark:text-white shadow-xs ring-1 ring-primary/40 dark:ring-white/30"
+                          : "border-border/80 bg-card hover:bg-muted/60 hover:border-border text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={cn(
+                            "flex h-7 w-7 items-center justify-center rounded-lg transition-colors shrink-0",
+                            isSelected
+                              ? "bg-primary text-primary-foreground dark:bg-white dark:text-neutral-900 shadow-2xs"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <span
+                          className={cn(
+                            "text-xs sm:text-sm font-semibold truncate",
+                            isSelected
+                              ? "text-foreground dark:text-white font-bold"
+                              : "text-foreground/80"
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                      </div>
+                      {item.badge !== undefined && (
+                        <Badge
+                          variant={isSelected ? "default" : "secondary"}
+                          className={cn(
+                            "h-5 px-1.5 text-[11px] font-semibold shrink-0 transition-colors",
+                            isSelected
+                              ? "bg-primary text-primary-foreground dark:bg-white dark:text-neutral-900 border-transparent font-bold"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
 
-                {/* Tab: Resumen Financiero */}
-                <TabsContent value="financial" className="space-y-4">
+              {/* Tab: Resumen Financiero */}
+              {activeTab === "financial" && (
+                <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     <Card className="shadow-xs">
                       <CardContent className="p-4 space-y-1">
@@ -365,10 +448,12 @@ export function CustomerDetailSheet({
                       Ir al POS
                     </Link>
                   </div>
-                </TabsContent>
+                </div>
+              )}
 
-                {/* Tab: Streaming 360° */}
-                <TabsContent value="streaming" className="space-y-4">
+              {/* Tab: Streaming 360° */}
+              {activeTab === "streaming" && (
+                <div className="space-y-4">
                   {customer.subscriptions && customer.subscriptions.length > 0 ? (
                     <div className="space-y-3">
                       {customer.subscriptions.map((sub) => {
@@ -484,10 +569,12 @@ export function CustomerDetailSheet({
                       </Link>
                     </div>
                   )}
-                </TabsContent>
+                </div>
+              )}
 
-                {/* Tab: Historial de Ventas */}
-                <TabsContent value="sales" className="space-y-4">
+              {/* Tab: Historial de Ventas */}
+              {activeTab === "sales" && (
+                <div className="space-y-4">
                   {isLoadingSales ? (
                     <div className="flex h-32 items-center justify-center">
                       <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -505,7 +592,7 @@ export function CustomerDetailSheet({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {sales.map((sale) => (
+                          {paginatedSales.map((sale) => (
                             <TableRow key={sale.id}>
                               <TableCell className="font-mono text-xs font-semibold">
                                 {sale.documentNumber || sale.orderNumber || sale.id.slice(0, 8)}
@@ -557,6 +644,33 @@ export function CustomerDetailSheet({
                           ))}
                         </TableBody>
                       </Table>
+
+                      {/* Customer Sales Pagination */}
+                      <div className="flex items-center justify-between border-t border-border px-3 py-2 bg-card">
+                        <span className="text-[11px] text-muted-foreground">
+                          Página {salesPage} de {salesTotalPages} ({sales.length} compras)
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSalesPage((p) => Math.max(p - 1, 1))}
+                            disabled={salesPage <= 1}
+                            className="h-7 px-2 text-xs"
+                          >
+                            <ChevronLeft className="h-3 w-3 mr-0.5" /> Ant.
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSalesPage((p) => Math.min(p + 1, salesTotalPages))}
+                            disabled={salesPage >= salesTotalPages}
+                            className="h-7 px-2 text-xs"
+                          >
+                            Sig. <ChevronRight className="h-3 w-3 ml-0.5" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="rounded-lg border border-dashed border-border p-8 text-center space-y-2">
@@ -569,10 +683,12 @@ export function CustomerDetailSheet({
                       </p>
                     </div>
                   )}
-                </TabsContent>
+                </div>
+              )}
 
-                {/* Tab: Detalles & Notas */}
-                <TabsContent value="info" className="space-y-4">
+              {/* Tab: Detalles & Notas */}
+              {activeTab === "info" && (
+                <div className="space-y-4">
                   <div className="rounded-lg border border-border bg-card p-4 space-y-4 text-xs">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
@@ -637,8 +753,8 @@ export function CustomerDetailSheet({
                       </span>
                     </div>
                   </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+              )}
             </div>
           </div>
         )}

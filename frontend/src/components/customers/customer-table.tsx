@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Search,
+  Loader2,
   MoreVertical,
   User,
   Mail,
@@ -52,6 +53,7 @@ import {
 interface CustomerTableProps {
   customers: Customer[];
   isLoading: boolean;
+  isSearching?: boolean;
   page: number;
   totalPages: number;
   total: number;
@@ -67,6 +69,7 @@ interface CustomerTableProps {
 export function CustomerTable({
   customers,
   isLoading,
+  isSearching = false,
   page,
   totalPages,
   total,
@@ -129,10 +132,14 @@ export function CustomerTable({
       {/* Search and Filters Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 sm:max-w-md">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          {isSearching ? (
+            <Loader2 className="absolute left-3 top-3 h-4 w-4 animate-spin text-primary" />
+          ) : (
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          )}
           <Input
             placeholder="Buscar por nombre, cédula, teléfono o email..."
-            className="pl-9 text-sm"
+            className="h-10 pl-10 text-xs sm:text-sm"
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
           />
@@ -167,17 +174,17 @@ export function CustomerTable({
       </div>
 
       {/* Customers Data Table */}
-      <div className="rounded-lg border border-border bg-card shadow-xs overflow-hidden">
-        <Table>
+      <div className="rounded-lg border border-border bg-card shadow-xs overflow-x-auto">
+        <Table className="min-w-[850px] w-full">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[280px]">Cliente</TableHead>
-              <TableHead>Documento</TableHead>
-              <TableHead>Teléfono / WhatsApp</TableHead>
-              <TableHead className="text-center">Streaming</TableHead>
-              <TableHead className="text-center">Ventas</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
+              <TableHead className="w-[300px] h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliente</TableHead>
+              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Documento</TableHead>
+              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Teléfono / WhatsApp</TableHead>
+              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Streaming</TableHead>
+              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Ventas</TableHead>
+              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</TableHead>
+              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -220,7 +227,7 @@ export function CustomerTable({
                     onClick={() => onSelectCustomer(customer)}
                   >
                     {/* Cliente Info */}
-                    <TableCell>
+                    <TableCell className="py-4 px-5 text-xs">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 border border-border text-xs font-semibold">
                           <AvatarFallback>
@@ -246,7 +253,7 @@ export function CustomerTable({
                     </TableCell>
 
                     {/* Documento */}
-                    <TableCell>
+                    <TableCell className="py-4 px-5 text-xs">
                       {customer.documentId ? (
                         <span className="font-mono text-xs font-medium text-foreground">
                           {customer.documentId}
@@ -257,7 +264,7 @@ export function CustomerTable({
                     </TableCell>
 
                     {/* Teléfono & WhatsApp */}
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="py-4 px-5 text-xs" onClick={(e) => e.stopPropagation()}>
                       {customer.phone ? (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-foreground font-medium">
@@ -281,7 +288,7 @@ export function CustomerTable({
                     </TableCell>
 
                     {/* Suscripciones Streaming */}
-                    <TableCell className="text-center">
+                    <TableCell className="py-4 px-5 text-xs text-center">
                       {subCount > 0 ? (
                         <Badge
                           variant="outline"
@@ -296,7 +303,7 @@ export function CustomerTable({
                     </TableCell>
 
                     {/* Ventas POS */}
-                    <TableCell className="text-center">
+                    <TableCell className="py-4 px-5 text-xs text-center">
                       {salesCount > 0 ? (
                         <Badge
                           variant="outline"
@@ -311,7 +318,7 @@ export function CustomerTable({
                     </TableCell>
 
                     {/* Estado */}
-                    <TableCell>
+                    <TableCell className="py-4 px-5 text-xs">
                       {customer.isActive ? (
                         <Badge
                           variant="outline"
@@ -331,7 +338,7 @@ export function CustomerTable({
 
                     {/* Acciones */}
                     <TableCell
-                      className="text-right"
+                      className="py-4 px-5 text-xs text-right"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <DropdownMenu>
@@ -403,7 +410,7 @@ export function CustomerTable({
         </Table>
 
         {/* Pagination Bar */}
-        <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-border px-5 py-4 text-xs text-muted-foreground">
           <span>
             Mostrando <strong>{customers.length}</strong> de{" "}
             <strong>{total}</strong> clientes
@@ -439,7 +446,7 @@ export function CustomerTable({
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />

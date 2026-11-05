@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
+import { SidebarProvider, useSidebar } from "@/components/providers/sidebar-provider";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  const { isCollapsed } = useSidebar();
   const router = useRouter();
-  const isRedirecting = React.useRef(false);
+  const isRedirecting = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !user && !isRedirecting.current) {
@@ -36,20 +35,37 @@ export default function DashboardLayout({
         </div>
       )}
 
-      {/* Desktop Sidebar */}
-      <div className="hidden md:flex md:w-64 md:flex-col shrink-0">
+      {/* Desktop Sidebar with smooth collapse/expand width transition */}
+      <div
+        className={cn(
+          "hidden md:flex md:flex-col shrink-0 border-r border-border bg-card transition-[width] duration-300 ease-in-out overflow-hidden z-20",
+          isCollapsed ? "md:w-[72px]" : "md:w-64"
+        )}
+      >
         <AppSidebar />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <AppHeader />
-        <main className="flex-1 overflow-y-auto bg-muted/20 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl space-y-6">
+        <main className="flex-1 overflow-y-auto bg-muted/20 p-3 sm:p-5 lg:p-6 transition-all duration-300">
+          <div className="w-full min-w-0 space-y-4 sm:space-y-6">
             {children}
           </div>
         </main>
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SidebarProvider>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </SidebarProvider>
   );
 }

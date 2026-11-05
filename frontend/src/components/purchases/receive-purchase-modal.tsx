@@ -155,7 +155,7 @@ export function ReceivePurchaseModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <PackageCheck className="h-5 w-5 text-emerald-600" />

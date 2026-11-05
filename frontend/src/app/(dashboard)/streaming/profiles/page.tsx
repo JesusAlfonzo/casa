@@ -232,26 +232,26 @@ export default function StreamingProfilesPage() {
             return (
               <Card key={account.id} className="border-border shadow-xs overflow-hidden">
                 {/* Account Matrix Header */}
-                <CardHeader className="p-3.5 bg-muted/30 border-b border-border flex flex-row items-center justify-between">
+                <CardHeader className="p-3.5 bg-muted/30 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
                       <Tv className="h-4 w-4" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-sm text-foreground">
                           {account.service?.name}
                         </span>
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[10px] truncate max-w-[200px] sm:max-w-none">
                           {account.accessEmail}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
                         <span className="font-mono">
                           Clave: {account.accessPassword || "••••••••"}
                         </span>
                         {account.securityPin && (
-                          <span>• PIN Cuenta: {account.securityPin}</span>
+                          <span>• PIN: {account.securityPin}</span>
                         )}
                         <span>• Corte: {new Date(account.supplierCutoffDate).toLocaleDateString()}</span>
                       </div>

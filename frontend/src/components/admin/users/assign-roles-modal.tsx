@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { type RoleDetail, type UserSummaryItem } from "@/types/rbac";
@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Shield, Loader2, Check } from "lucide-react";
+import { Shield, Loader2 } from "lucide-react";
 
 interface AssignRolesModalProps {
   open: boolean;
@@ -30,13 +30,12 @@ export function AssignRolesModal({
 }: AssignRolesModalProps) {
   const queryClient = useQueryClient();
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
-  const [prevUserId, setPrevUserId] = useState<string | null>(null);
 
-  const currentUserId = user?.id || null;
-  if (currentUserId !== prevUserId) {
-    setPrevUserId(currentUserId);
-    setSelectedRoleIds(user?.roles.map((r) => r.id) || []);
-  }
+  useEffect(() => {
+    if (user && open) {
+      setSelectedRoleIds(user.roles?.map((r) => r.id) || []);
+    }
+  }, [user, open]);
 
   // Fetch available roles
   const { data: rolesData, isLoading: loadingRoles } = useQuery<{
@@ -78,7 +77,7 @@ export function AssignRolesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -112,41 +111,38 @@ export function AssignRolesModal({
                 {roles.map((role) => {
                   const isChecked = selectedRoleIds.includes(role.id);
                   return (
-                    <div
+                    <label
                       key={role.id}
-                      onClick={() => handleToggleRole(role.id)}
-                      className={`flex items-start justify-between rounded-lg border p-3 cursor-pointer text-xs transition-colors ${
+                      className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer text-xs transition-colors select-none ${
                         isChecked
-                          ? "border-primary bg-primary/5 text-primary"
+                          ? "border-primary bg-primary/5 text-primary shadow-2xs"
                           : "border-border hover:bg-muted/50 text-foreground"
                       }`}
                     >
-                      <div className="space-y-0.5">
-                        <div className="font-semibold flex items-center gap-2">
-                          <span>{role.name}</span>
-                          {role.isSystem && (
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                              SISTEMA
-                            </span>
-                          )}
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleRole(role.id)}
+                        className="mt-0.5 rounded border-muted-foreground/30 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      />
+                      <div className="flex-1 space-y-0.5 overflow-hidden">
+                        <div className="font-semibold flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            {role.name}
+                            {role.isSystem && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+                                SISTEMA
+                              </span>
+                            )}
+                          </span>
                         </div>
                         {role.description && (
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
                             {role.description}
                           </p>
                         )}
                       </div>
-
-                      <div
-                        className={`h-5 w-5 rounded border flex items-center justify-center transition-colors ${
-                          isChecked
-                            ? "bg-primary border-primary text-primary-foreground"
-                            : "border-muted-foreground/30 bg-background"
-                        }`}
-                      >
-                        {isChecked && <Check className="h-3.5 w-3.5" />}
-                      </div>
-                    </div>
+                    </label>
                   );
                 })}
               </div>

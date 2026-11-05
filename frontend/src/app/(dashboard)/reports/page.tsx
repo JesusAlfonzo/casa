@@ -12,7 +12,7 @@ import {
   type SubscriptionsReportResult,
 } from "@/types/report";
 import { exportToCSV } from "@/lib/export-csv";
-import { useClientNow } from "@/lib/utils";
+import { cn, useClientNow } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,149 @@ import {
   ArrowDownRight,
   Percent,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+
+// Helper formatters para badges y estados 100% en Español
+const formatSaleStatus = (status: string) => {
+  switch (status) {
+    case "COMPLETED":
+      return {
+        label: "Completada",
+        className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+      };
+    case "PENDING_PAYMENT":
+      return {
+        label: "Pendiente",
+        className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      };
+    case "PARTIALLY_PAID":
+      return {
+        label: "Pago Parcial",
+        className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      };
+    case "VOIDED":
+      return {
+        label: "Anulada",
+        className: "bg-destructive/10 text-destructive border-destructive/20",
+      };
+    case "QUOTE":
+      return {
+        label: "Presupuesto",
+        className: "bg-muted text-muted-foreground border-border",
+      };
+    default:
+      return {
+        label: status,
+        className: "bg-muted text-muted-foreground border-border",
+      };
+  }
+};
+
+const formatSubscriptionStatus = (status: string) => {
+  switch (status) {
+    case "ACTIVE":
+      return {
+        label: "Activa",
+        className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+      };
+    case "EXPIRING_SOON":
+      return {
+        label: "Por Vencer",
+        className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      };
+    case "EXPIRED":
+      return {
+        label: "Vencida",
+        className: "bg-destructive/10 text-destructive border-destructive/20",
+      };
+    case "SUSPENDED":
+      return {
+        label: "Suspendida",
+        className: "bg-rose-500/10 text-rose-600 border-rose-500/20",
+      };
+    case "CANCELLED":
+      return {
+        label: "Cancelada",
+        className: "bg-muted text-muted-foreground border-border",
+      };
+    default:
+      return {
+        label: status,
+        className: "bg-muted text-muted-foreground border-border",
+      };
+  }
+};
+
+const formatDaysRemainingBadge = (days: number) => {
+  if (days < 0) {
+    return {
+      label: `Vencida (-${Math.abs(days)}d)`,
+      className: "bg-destructive/10 text-destructive border-destructive/20",
+    };
+  }
+  if (days === 0) {
+    return {
+      label: "Vence Hoy",
+      className: "bg-destructive/10 text-destructive border-destructive/20 animate-pulse font-bold",
+    };
+  }
+  if (days <= 3) {
+    return {
+      label: `${days} días (Crítico)`,
+      className: "bg-destructive/10 text-destructive border-destructive/20 font-semibold",
+    };
+  }
+  if (days <= 7) {
+    return {
+      label: `${days} días (Próximo)`,
+      className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-medium",
+    };
+  }
+  return {
+    label: `${days} días`,
+    className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-medium",
+  };
+};
+
+const formatPaymentMethodName = (name: string) => {
+  if (!name) return "No especificado";
+  const map: Record<string, string> = {
+    CASH: "Efectivo",
+    CASH_USD: "Efectivo USD",
+    CASH_VES: "Efectivo Bs.",
+    PAGO_MOVIL: "Pago Móvil",
+    BANK_TRANSFER: "Transferencia Bancaria",
+    TRANSFER: "Transferencia",
+    TRANSFER_VES: "Transferencia Bs.",
+    TRANSFER_USD: "Transferencia USD",
+    DEBIT_CARD: "Tarjeta de Débito",
+    CREDIT_CARD: "Tarjeta de Crédito",
+    POINT_OF_SALE: "Punto de Venta",
+    DIGITAL_WALLET: "Billetera Digital",
+    ZELLE: "Zelle",
+    BINANCE: "Binance Pay",
+    PAYPAL: "PayPal",
+    CREDIT: "Crédito Comercial",
+  };
+  return map[name.toUpperCase()] || name;
+};
+
+const formatAccountType = (type?: string) => {
+  switch (type) {
+    case "DOMESTIC_BANK":
+      return "Banco Nacional";
+    case "INTERNATIONAL_BANK":
+      return "Banco Internacional";
+    case "DIGITAL_WALLET":
+      return "Billetera Digital";
+    case "CASH_REGISTER":
+      return "Caja de Efectivo";
+    default:
+      return type ? type.replace(/_/g, " ") : "Cuenta Financiera";
+  }
+};
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState("sales");
@@ -59,6 +201,16 @@ export default function ReportsPage() {
 
   // Filters for Cashflow Report
   const [cashflowDays, setCashflowDays] = useState("30");
+
+  // Pagination states for all 4 tables
+  const [salesPage, setSalesPage] = useState(1);
+  const salesLimit = 10;
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const inventoryLimit = 10;
+  const [cashflowPage, setCashflowPage] = useState(1);
+  const cashflowLimit = 10;
+  const [subscriptionsPage, setSubscriptionsPage] = useState(1);
+  const subscriptionsLimit = 10;
 
   // Helper date calculators based on preset (using stable clientNow)
   const getSalesDateRange = () => {
@@ -174,15 +326,18 @@ export default function ReportsPage() {
         { header: "Comprobante", accessor: "documentNumber" },
         { header: "Cliente", accessor: "customerName" },
         { header: "RIF / Doc", accessor: (r) => r.customerTaxId || "N/A" },
-        { header: "Estado", accessor: "status" },
-        { header: "Items", accessor: "itemsCount" },
+        { header: "Estado", accessor: (r) => formatSaleStatus(r.status).label },
+        { header: "Artículos", accessor: "itemsCount" },
         { header: "Subtotal", accessor: "subtotal" },
         { header: "Impuestos", accessor: "taxAmount" },
         { header: "Total Facturado", accessor: "total" },
         { header: "Total Cobrado", accessor: "totalCollected" },
         { header: "Saldo Pendiente", accessor: "balancePending" },
         { header: "Moneda", accessor: "currencyCode" },
-        { header: "Métodos de Pago", accessor: (r) => r.paymentMethods.join(" / ") },
+        {
+          header: "Métodos de Pago",
+          accessor: (r) => r.paymentMethods.map(formatPaymentMethodName).join(" / "),
+        },
       ],
       salesData.items
     );
@@ -198,7 +353,15 @@ export default function ReportsPage() {
         { header: "Producto", accessor: "productName" },
         { header: "Categoría", accessor: "categoryName" },
         { header: "Almacén", accessor: "warehouseName" },
-        { header: "Stock Actual", accessor: "currentStock" },
+        {
+          header: "Stock Actual",
+          accessor: (r) =>
+            r.currentStock <= 0
+              ? "Agotado (0)"
+              : r.currentStock <= 5
+                ? `${r.currentStock} uds (Bajo)`
+                : `${r.currentStock} uds`,
+        },
         { header: "Costo Promedio", accessor: "averageCost" },
         { header: "Valor Total Costo", accessor: "totalCostValuation" },
         { header: "Precio Venta Base", accessor: "baseSalePrice" },
@@ -217,8 +380,8 @@ export default function ReportsPage() {
       [
         { header: "Fecha y Hora", accessor: (r) => new Date(r.date).toLocaleString("es-VE") },
         { header: "Cuenta Financiera", accessor: "accountName" },
-        { header: "Tipo de Flujo", accessor: "flowType" },
-        { header: "Método de Pago", accessor: "paymentMethodName" },
+        { header: "Tipo de Flujo", accessor: (r) => (r.flowType === "INFLOW" ? "Ingreso" : "Egreso") },
+        { header: "Método de Pago", accessor: (r) => formatPaymentMethodName(r.paymentMethodName) },
         { header: "Referencia", accessor: (r) => r.reference || "N/A" },
         { header: "Monto", accessor: "amount" },
         { header: "Moneda", accessor: "currencyCode" },
@@ -237,10 +400,13 @@ export default function ReportsPage() {
         { header: "Servicio", accessor: "serviceName" },
         { header: "Perfil / Pantalla", accessor: (r) => r.profileIdentifier || "Cuenta Completa" },
         { header: "Fecha Vencimiento", accessor: (r) => new Date(r.renewAt).toLocaleDateString("es-VE") },
-        { header: "Días Restantes", accessor: "daysRemaining" },
+        { header: "Estado", accessor: (r) => formatSubscriptionStatus(r.status).label },
+        {
+          header: "Días Restantes",
+          accessor: (r) => formatDaysRemainingBadge(r.daysRemaining).label,
+        },
         { header: "Precio Acordado", accessor: "amount" },
         { header: "Moneda", accessor: "currencyCode" },
-        { header: "Estado", accessor: "status" },
       ],
       subscriptionsData.upcomingRenewals
     );
@@ -259,68 +425,96 @@ export default function ReportsPage() {
     );
   }, [inventoryData, inventorySearch]);
 
+  // Paginated slices for all 4 tables
+  const salesItems = salesData?.items || [];
+  const salesTotalPages = Math.ceil(salesItems.length / salesLimit) || 1;
+  const paginatedSales = salesItems.slice(
+    (salesPage - 1) * salesLimit,
+    salesPage * salesLimit
+  );
+
+  const inventoryTotalPages = Math.ceil(filteredInventoryItems.length / inventoryLimit) || 1;
+  const paginatedInventory = filteredInventoryItems.slice(
+    (inventoryPage - 1) * inventoryLimit,
+    inventoryPage * inventoryLimit
+  );
+
+  const cashflowItems = cashflowData?.recentTransactions || [];
+  const cashflowTotalPages = Math.ceil(cashflowItems.length / cashflowLimit) || 1;
+  const paginatedCashflow = cashflowItems.slice(
+    (cashflowPage - 1) * cashflowLimit,
+    cashflowPage * cashflowLimit
+  );
+
+  const subscriptionsItems = subscriptionsData?.upcomingRenewals || [];
+  const subscriptionsTotalPages = Math.ceil(subscriptionsItems.length / subscriptionsLimit) || 1;
+  const paginatedSubscriptions = subscriptionsItems.slice(
+    (subscriptionsPage - 1) * subscriptionsLimit,
+    subscriptionsPage * subscriptionsLimit
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8 pb-10">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" /> Reportes & Exportación
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-2">
+        <div className="space-y-1">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+            <BarChart3 className="h-7 w-7 text-primary" /> Reportes & Exportación
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground leading-relaxed">
             Métricas de facturación, valoración de stock, conciliación de tesorería y exportación a Excel / CSV.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="flex flex-wrap items-center gap-2.5 print:hidden">
           <Button
             variant="outline"
             size="sm"
             onClick={() => window.print()}
-            className="h-9"
+            className="h-10 px-4 text-xs sm:text-sm font-medium shadow-2xs"
           >
-            <Printer className="h-4 w-4 mr-1.5" /> Imprimir
+            <Printer className="h-4 w-4 mr-2" /> Imprimir
           </Button>
 
           {activeTab === "sales" && (
-            <Button size="sm" onClick={handleExportSales} className="h-9 shadow-xs">
-              <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Exportar Ventas CSV
+            <Button size="sm" onClick={handleExportSales} className="h-10 px-4 text-xs sm:text-sm font-medium shadow-xs">
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Ventas CSV
             </Button>
           )}
 
           {activeTab === "inventory" && (
-            <Button size="sm" onClick={handleExportInventory} className="h-9 shadow-xs">
-              <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Exportar Stock CSV
+            <Button size="sm" onClick={handleExportInventory} className="h-10 px-4 text-xs sm:text-sm font-medium shadow-xs">
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Stock CSV
             </Button>
           )}
 
           {activeTab === "cashflow" && (
-            <Button size="sm" onClick={handleExportCashflow} className="h-9 shadow-xs">
-              <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Exportar Flujos CSV
+            <Button size="sm" onClick={handleExportCashflow} className="h-10 px-4 text-xs sm:text-sm font-medium shadow-xs">
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Flujos CSV
             </Button>
           )}
 
           {activeTab === "subscriptions" && (
-            <Button size="sm" onClick={handleExportSubscriptions} className="h-9 shadow-xs">
-              <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Exportar Renovaciones CSV
+            <Button size="sm" onClick={handleExportSubscriptions} className="h-10 px-4 text-xs sm:text-sm font-medium shadow-xs">
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Renovaciones CSV
             </Button>
           )}
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted print:hidden">
-          <TabsTrigger value="sales" className="text-xs">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="bg-muted/80 p-1.5 h-12 gap-1.5 rounded-xl border border-border/50 print:hidden inline-flex flex-wrap sm:flex-nowrap">
+          <TabsTrigger value="sales" className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg data-[state=active]:shadow-xs">
             Ventas & Facturación
           </TabsTrigger>
-          <TabsTrigger value="inventory" className="text-xs">
+          <TabsTrigger value="inventory" className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg data-[state=active]:shadow-xs">
             Valoración de Inventario
           </TabsTrigger>
-          <TabsTrigger value="cashflow" className="text-xs">
+          <TabsTrigger value="cashflow" className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg data-[state=active]:shadow-xs">
             Tesorería & Flujos
           </TabsTrigger>
-          <TabsTrigger value="subscriptions" className="text-xs">
+          <TabsTrigger value="subscriptions" className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg data-[state=active]:shadow-xs">
             Streaming & Suscripciones
           </TabsTrigger>
         </TabsList>
@@ -328,220 +522,229 @@ export default function ReportsPage() {
         {/* ========================================================================= */}
         {/* TAB 1: VENTAS & FACTURACIÓN */}
         {/* ========================================================================= */}
-        <TabsContent value="sales" className="space-y-4">
+        <TabsContent value="sales" className="space-y-6">
           {/* Filters Bar */}
-          <Card className="border-border shadow-xs print:hidden">
-            <CardContent className="p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5" /> Período:
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {[
-                      { label: "Todo", value: "ALL" },
-                      { label: "Hoy", value: "TODAY" },
-                      { label: "Últimos 7 días", value: "7DAYS" },
-                      { label: "Últimos 30 días", value: "30DAYS" },
-                    ].map((p) => (
-                      <Button
-                        key={p.value}
-                        type="button"
-                        variant={salesDatePreset === p.value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSalesDatePreset(p.value)}
-                        className="h-8 text-xs px-2.5"
-                      >
-                        {p.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <select
-                    value={salesStatus}
-                    onChange={(e) => setSalesStatus(e.target.value)}
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs shadow-xs"
-                  >
-                    <option value="ALL">Todos los estados</option>
-                    <option value="COMPLETED">Completadas</option>
-                    <option value="PENDING_PAYMENT">Pendientes de Pago</option>
-                    <option value="PARTIALLY_PAID">Parcialmente Cobradas</option>
-                    <option value="VOIDED">Anuladas</option>
-                  </select>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => refetchSales()}
-                    className="h-8 w-8"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+          <Card className="border-border shadow-xs print:hidden p-5 sm:p-6 gap-0 py-5 sm:py-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs sm:text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" /> Período:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { label: "Todo", value: "ALL" },
+                    { label: "Hoy", value: "TODAY" },
+                    { label: "Últimos 7 días", value: "7DAYS" },
+                    { label: "Últimos 30 días", value: "30DAYS" },
+                  ].map((p) => (
+                    <Button
+                      key={p.value}
+                      type="button"
+                      variant={salesDatePreset === p.value ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setSalesDatePreset(p.value);
+                        setSalesPage(1);
+                      }}
+                      className="h-9 text-xs sm:text-sm px-3.5"
+                    >
+                      {p.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
-            </CardContent>
+
+              <div className="flex items-center gap-3">
+                <select
+                  value={salesStatus}
+                  onChange={(e) => {
+                    setSalesStatus(e.target.value);
+                    setSalesPage(1);
+                  }}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-xs sm:text-sm shadow-2xs focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="ALL">Todos los estados</option>
+                  <option value="COMPLETED">Completadas</option>
+                  <option value="PENDING_PAYMENT">Pendientes de Pago</option>
+                  <option value="PARTIALLY_PAID">Parcialmente Cobradas</option>
+                  <option value="VOIDED">Anuladas</option>
+                </select>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => refetchSales()}
+                  className="h-9 w-9 shadow-2xs"
+                  title="Actualizar datos"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </Card>
 
           {/* KPI Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Total Facturado
-                </CardTitle>
-                <DollarSign className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  ${salesData?.summary.totalInvoiced.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                </span>
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <DollarSign className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {salesData?.summary.totalSalesCount || 0} ventas válidas
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                ${salesData?.summary.totalInvoiced.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {salesData?.summary.totalSalesCount || 0} ventas válidas
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Total Cobrado
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                  ${salesData?.summary.totalCollected.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                </span>
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <TrendingUp className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Ingresos efectivos
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">
+                ${salesData?.summary.totalCollected.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Ingresos efectivos
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Cuentas por Cobrar
-                </CardTitle>
-                <Clock className="h-4 w-4 text-amber-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                  ${salesData?.summary.totalPending.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                </span>
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Clock className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Saldo pendiente
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400 tracking-tight">
+                ${salesData?.summary.totalPending.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Saldo pendiente
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Ticket Promedio
-                </CardTitle>
-                <Percent className="h-4 w-4 text-purple-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  ${salesData?.summary.averageTicket.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                </span>
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <Percent className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Por transacción
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                ${salesData?.summary.averageTicket.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Por transacción
+              </p>
             </Card>
           </div>
 
           {/* Table */}
-          <Card className="border-border shadow-xs">
-            <CardHeader className="py-3 px-4 border-b border-border">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-foreground">
-                  Desglose Detallado de Ventas ({salesData?.items.length || 0})
-                </span>
+          <Card className="border-border shadow-xs overflow-hidden gap-0 py-0">
+            <div className="py-4.5 px-6 border-b border-border bg-card/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-semibold text-sm sm:text-base text-foreground">
+                  Desglose Detallado de Ventas
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Mostrando {salesData?.items.length || 0} operaciones facturadas en el período seleccionado.
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
+            </div>
+            <div className="p-0 overflow-x-auto">
+              <Table className="min-w-[950px] w-full">
                 <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="text-xs font-semibold">Fecha</TableHead>
-                    <TableHead className="text-xs font-semibold">Comprobante</TableHead>
-                    <TableHead className="text-xs font-semibold">Cliente</TableHead>
-                    <TableHead className="text-xs font-semibold text-center">Estado</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Total Facturado</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Cobrado</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Saldo</TableHead>
-                    <TableHead className="text-xs font-semibold">Método(s)</TableHead>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fecha</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comprobante</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliente</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Estado</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Total Facturado</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Cobrado</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Saldo</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Método(s)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingSales ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
-                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
-                        Cargando reporte de ventas...
+                      <TableCell colSpan={8} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-primary" />
+                        <span className="text-sm font-medium block">Cargando reporte de ventas...</span>
                       </TableCell>
                     </TableRow>
                   ) : !salesData?.items || salesData.items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
-                        No se registraron ventas en el período seleccionado.
+                      <TableCell colSpan={8} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <BarChart3 className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                        <span className="text-sm font-medium text-foreground block">Sin registros de ventas</span>
+                        No se registraron operaciones comerciales en el período seleccionado.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    salesData.items.map((sale) => (
-                      <TableRow key={sale.id} className="hover:bg-muted/30 text-xs">
-                        <TableCell>
+                    paginatedSales.map((sale) => (
+                      <TableRow key={sale.id} className="hover:bg-muted/30 transition-colors border-b border-border/60">
+                        <TableCell className="py-4 px-5 text-xs text-muted-foreground font-medium">
                           {new Date(sale.soldAt).toLocaleDateString("es-VE")}
                         </TableCell>
-                        <TableCell className="font-mono font-semibold text-primary">
+                        <TableCell className="py-4 px-5 font-mono font-semibold text-primary text-xs">
                           {sale.documentNumber}
                         </TableCell>
-                        <TableCell>
-                          <div className="font-medium text-foreground">
+                        <TableCell className="py-4 px-5">
+                          <div className="font-medium text-foreground text-xs sm:text-sm">
                             {sale.customerName}
                           </div>
                           {sale.customerTaxId && (
-                            <span className="text-[10px] text-muted-foreground font-mono">
+                            <span className="text-[11px] text-muted-foreground font-mono mt-0.5 block">
                               {sale.customerTaxId}
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Badge
-                            variant={
-                              sale.status === "COMPLETED"
-                                ? "secondary"
-                                : sale.status === "VOIDED"
-                                  ? "destructive"
-                                  : "outline"
-                            }
-                            className="text-[9px] px-1.5 py-0"
-                          >
-                            {sale.status}
-                          </Badge>
+                        <TableCell className="py-4 px-5 text-center">
+                          {(() => {
+                            const st = formatSaleStatus(sale.status);
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={cn("text-[10px] px-2.5 py-0.5 font-medium border", st.className)}
+                              >
+                                {st.label}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
-                        <TableCell className="text-right font-bold text-foreground">
+                        <TableCell className="py-4 px-5 text-right font-bold text-foreground text-xs sm:text-sm">
                           ${sale.total.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium">
+                        <TableCell className="py-4 px-5 text-right text-emerald-600 dark:text-emerald-400 font-semibold text-xs sm:text-sm">
                           ${sale.totalCollected.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right text-amber-600 dark:text-amber-400 font-medium">
+                        <TableCell className="py-4 px-5 text-right text-amber-600 dark:text-amber-400 font-semibold text-xs sm:text-sm">
                           ${sale.balancePending.toFixed(2)}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
+                        <TableCell className="py-4 px-5">
+                          <div className="flex flex-wrap gap-1.5">
                             {sale.paymentMethods.map((m, idx) => (
                               <span
                                 key={idx}
-                                className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                                className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/60 font-medium"
                               >
-                                {m}
+                                {formatPaymentMethodName(m)}
                               </span>
                             ))}
                           </div>
@@ -551,196 +754,249 @@ export default function ReportsPage() {
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
+            </div>
+
+            {/* Sales Pagination */}
+            <div className="flex items-center justify-between border-t border-border px-6 py-4 bg-card">
+              <span className="text-xs text-muted-foreground">
+                Mostrando página {salesPage} de {salesTotalPages} ({salesItems.length} ventas)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSalesPage((p) => Math.max(p - 1, 1))}
+                  disabled={salesPage <= 1}
+                  className="h-8 text-xs"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSalesPage((p) => Math.min(p + 1, salesTotalPages))}
+                  disabled={salesPage >= salesTotalPages}
+                  className="h-8 text-xs"
+                >
+                  Siguiente <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </div>
+            </div>
           </Card>
         </TabsContent>
 
         {/* ========================================================================= */}
         {/* TAB 2: VALORACIÓN DE INVENTARIO */}
         {/* ========================================================================= */}
-        <TabsContent value="inventory" className="space-y-4">
+        <TabsContent value="inventory" className="space-y-6">
           {/* Filters Bar */}
-          <Card className="border-border shadow-xs print:hidden">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por producto, SKU o categoría..."
-                    value={inventorySearch}
-                    onChange={(e) => setInventorySearch(e.target.value)}
-                    className="pl-9 h-8 text-xs"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <select
-                    value={inventoryLocation}
-                    onChange={(e) => setInventoryLocation(e.target.value)}
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs shadow-xs"
-                  >
-                    <option value="ALL">Todos los almacenes</option>
-                    {locations.map((loc) => (
-                      <option key={loc.id} value={loc.id}>
-                        {loc.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => refetchInventory()}
-                    className="h-8 w-8"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </div>
+          <Card className="border-border shadow-xs print:hidden p-5 sm:p-6 gap-0 py-5 sm:py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por producto, SKU o categoría..."
+                  value={inventorySearch}
+                  onChange={(e) => {
+                    setInventorySearch(e.target.value);
+                    setInventoryPage(1);
+                  }}
+                  className="pl-10 h-10 text-xs sm:text-sm shadow-2xs"
+                />
               </div>
-            </CardContent>
+
+              <div className="flex items-center gap-3">
+                <select
+                  value={inventoryLocation}
+                  onChange={(e) => {
+                    setInventoryLocation(e.target.value);
+                    setInventoryPage(1);
+                  }}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-xs sm:text-sm shadow-2xs focus:outline-none focus:ring-1 focus:ring-primary min-w-[200px]"
+                >
+                  <option value="ALL">Todos los almacenes</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => refetchInventory()}
+                  className="h-10 w-10 shadow-2xs"
+                  title="Actualizar datos"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </Card>
 
           {/* KPI Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Stock Total
-                </CardTitle>
-                <Package className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  {inventoryData?.summary.totalStockUnits || 0} uds
+                </span>
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <Package className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {inventoryData?.summary.totalProductsListed || 0} registros en catálogo
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                {inventoryData?.summary.totalStockUnits || 0} uds
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {inventoryData?.summary.totalProductsListed || 0} registros en catálogo
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
-                  Valorización a Costo
-                </CardTitle>
-                <Layers className="h-4 w-4 text-blue-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  ${inventoryData?.summary.totalCostValuation.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
+                  Valoración a Costo
+                </span>
+                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                  <Layers className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Inversión en almacén
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">
+                ${inventoryData?.summary.totalCostValuation.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Inversión en almacén
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
-                  Valorización a Venta
-                </CardTitle>
-                <DollarSign className="h-4 w-4 text-emerald-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                  ${inventoryData?.summary.totalRetailValuation.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
+                  Valoración a Venta
+                </span>
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <DollarSign className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Proyección comercial
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">
+                ${inventoryData?.summary.totalRetailValuation.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Proyección comercial
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Ganancia Proyectada
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-purple-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                  ${inventoryData?.summary.projectedGrossProfit.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                </span>
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <TrendingUp className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Margen: {inventoryData?.summary.averageMarginPercent || 0}%
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-purple-600 dark:text-purple-400 tracking-tight">
+                ${inventoryData?.summary.projectedGrossProfit.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Margen estimado: {inventoryData?.summary.averageMarginPercent || 0}%
+              </p>
             </Card>
           </div>
 
           {/* Table */}
-          <Card className="border-border shadow-xs">
-            <CardHeader className="py-3 px-4 border-b border-border">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-foreground">
-                  Detalle de Artículos y Márgenes ({filteredInventoryItems.length})
-                </span>
+          <Card className="border-border shadow-xs overflow-hidden gap-0 py-0">
+            <div className="py-4.5 px-6 border-b border-border bg-card/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-semibold text-sm sm:text-base text-foreground">
+                  Detalle de Artículos y Márgenes
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {filteredInventoryItems.length} artículos evaluados según existencias y costos promedio.
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
+            </div>
+            <div className="p-0 overflow-x-auto">
+              <Table className="min-w-[1000px] w-full">
                 <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="text-xs font-semibold">SKU</TableHead>
-                    <TableHead className="text-xs font-semibold">Producto</TableHead>
-                    <TableHead className="text-xs font-semibold">Categoría</TableHead>
-                    <TableHead className="text-xs font-semibold">Almacén</TableHead>
-                    <TableHead className="text-xs font-semibold text-center">Stock Actual</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Costo Unit.</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Total Costo</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Precio Venta</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Ganancia Est.</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Margen</TableHead>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">SKU</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Producto</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Categoría</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Almacén</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Stock Actual</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Costo Unit.</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Total Costo</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Precio Venta</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Ganancia Est.</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Margen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingInventory ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-32 text-center text-xs text-muted-foreground">
-                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
-                        Calculando valorización de inventario...
+                      <TableCell colSpan={10} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-primary" />
+                        <span className="text-sm font-medium block">Calculando valorización de inventario...</span>
                       </TableCell>
                     </TableRow>
                   ) : filteredInventoryItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-32 text-center text-xs text-muted-foreground">
-                        No se encontraron productos en el inventario.
+                      <TableCell colSpan={10} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <Package className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                        <span className="text-sm font-medium text-foreground block">Sin productos en inventario</span>
+                        No se encontraron registros de artículos para los filtros especificados.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredInventoryItems.map((item) => (
-                      <TableRow key={item.id} className="hover:bg-muted/30 text-xs">
-                        <TableCell className="font-mono text-muted-foreground">
+                    paginatedInventory.map((item) => (
+                      <TableRow key={item.id} className="hover:bg-muted/30 transition-colors border-b border-border/60">
+                        <TableCell className="py-4 px-5 font-mono text-muted-foreground text-xs font-medium">
                           {item.sku}
                         </TableCell>
-                        <TableCell className="font-semibold text-foreground">
+                        <TableCell className="py-4 px-5 font-semibold text-foreground text-xs sm:text-sm">
                           {item.productName}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="py-4 px-5 text-muted-foreground text-xs">
                           {item.categoryName}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="py-4 px-5 text-muted-foreground text-xs">
                           {item.warehouseName}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-foreground">
-                          {item.currentStock}
+                        <TableCell className="py-4 px-5 text-center">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-2.5 py-0.5 font-medium border font-mono",
+                              item.currentStock <= 0
+                                ? "bg-destructive/10 text-destructive border-destructive/20"
+                                : item.currentStock <= 5
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            )}
+                          >
+                            {item.currentStock <= 0
+                              ? "Agotado (0)"
+                              : item.currentStock <= 5
+                                ? `${item.currentStock} uds (Bajo)`
+                                : `${item.currentStock} uds`}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
+                        <TableCell className="py-4 px-5 text-right text-muted-foreground text-xs">
                           ${item.averageCost.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-foreground">
+                        <TableCell className="py-4 px-5 text-right font-medium text-foreground text-xs sm:text-sm">
                           ${item.totalCostValuation.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-foreground">
+                        <TableCell className="py-4 px-5 text-right font-medium text-foreground text-xs sm:text-sm">
                           ${item.baseSalePrice.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                        <TableCell className="py-4 px-5 text-right text-emerald-600 dark:text-emerald-400 font-bold text-xs sm:text-sm">
                           ${item.projectedProfit.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-[11px] text-muted-foreground">
+                        <TableCell className="py-4 px-5 text-right font-mono text-xs text-muted-foreground">
                           {item.profitMarginPercent}%
                         </TableCell>
                       </TableRow>
@@ -748,22 +1004,49 @@ export default function ReportsPage() {
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
+            </div>
+
+            {/* Inventory Pagination */}
+            <div className="flex items-center justify-between border-t border-border px-6 py-4 bg-card">
+              <span className="text-xs text-muted-foreground">
+                Mostrando página {inventoryPage} de {inventoryTotalPages} ({filteredInventoryItems.length} artículos)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setInventoryPage((p) => Math.max(p - 1, 1))}
+                  disabled={inventoryPage <= 1}
+                  className="h-8 text-xs"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setInventoryPage((p) => Math.min(p + 1, inventoryTotalPages))}
+                  disabled={inventoryPage >= inventoryTotalPages}
+                  className="h-8 text-xs"
+                >
+                  Siguiente <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </div>
+            </div>
           </Card>
         </TabsContent>
 
         {/* ========================================================================= */}
         {/* TAB 3: TESORERÍA & FLUJOS */}
         {/* ========================================================================= */}
-        <TabsContent value="cashflow" className="space-y-4">
+        <TabsContent value="cashflow" className="space-y-6">
           {/* Controls Bar */}
-          <Card className="border-border shadow-xs print:hidden">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Período de Flujo:
-                  </span>
+          <Card className="border-border shadow-xs print:hidden p-5 sm:p-6 gap-0 py-5 sm:py-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs sm:text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" /> Período de Flujo:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
                   {[
                     { label: "Últimos 7 días", value: "7" },
                     { label: "Últimos 30 días", value: "30" },
@@ -774,86 +1057,95 @@ export default function ReportsPage() {
                       type="button"
                       variant={cashflowDays === p.value ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setCashflowDays(p.value)}
-                      className="h-8 text-xs"
+                      onClick={() => {
+                        setCashflowDays(p.value);
+                        setCashflowPage(1);
+                      }}
+                      className="h-9 text-xs sm:text-sm px-3.5"
                     >
                       {p.label}
                     </Button>
                   ))}
                 </div>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => refetchCashflow()}
-                  className="h-8 w-8"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
               </div>
-            </CardContent>
+
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refetchCashflow()}
+                className="h-9 w-9 shadow-2xs"
+                title="Actualizar datos"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
           </Card>
 
           {/* Account Balances Grid */}
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 md:grid-cols-4">
             {cashflowData?.accountBalances.map((acc) => (
-              <Card key={acc.id} className="border-border shadow-xs">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-xs font-medium text-muted-foreground truncate">
+              <Card key={acc.id} className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+                <div className="flex items-center justify-between pb-3 gap-2">
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                     {acc.accountName}
-                  </CardTitle>
-                  <Badge variant="outline" className="text-[10px] font-mono">
+                  </span>
+                  <Badge variant="outline" className="text-[11px] font-mono px-2 py-0.5 shrink-0">
                     {acc.currencyCode}
                   </Badge>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xl font-bold text-foreground">
-                    {acc.currentBalance.toLocaleString("es-VE", { minimumFractionDigits: 2 })}{" "}
-                    {acc.currencyCode}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">
-                    {(acc.accountType || acc.type || "Cuenta").toLowerCase().replace(/_/g, " ")}
-                  </p>
-                </CardContent>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+                  {acc.currentBalance.toLocaleString("es-VE", { minimumFractionDigits: 2 })}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">{acc.currencyCode}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                  {formatAccountType(acc.accountType || acc.type)}
+                </p>
               </Card>
             ))}
           </div>
 
           {/* Flows by currency */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
             {Object.entries(cashflowData?.flowsByCurrency || {}).map(([currency, flow]) => (
-              <Card key={currency} className="border-border shadow-xs p-4 space-y-2">
-                <div className="flex items-center justify-between border-b border-border pb-2">
-                  <span className="font-bold text-xs text-foreground">
+              <Card key={currency} className="border-border shadow-xs p-5 sm:p-6 space-y-3.5 gap-0 py-5 sm:py-6">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <span className="font-bold text-sm text-foreground">
                     Flujo Neto ({currency})
                   </span>
                   <Badge
-                    variant={flow.net >= 0 ? "secondary" : "destructive"}
-                    className="text-[10px]"
+                    variant="outline"
+                    className={cn(
+                      "text-xs px-2.5 py-0.5 font-semibold border",
+                      flow.net >= 0
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-destructive/10 text-destructive border-destructive/20"
+                    )}
                   >
                     {flow.net >= 0 ? "+ Superávit" : "- Déficit"}
                   </Badge>
                 </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span className="flex items-center gap-1 text-emerald-600">
-                      <ArrowUpRight className="h-3.5 w-3.5" /> Ingresos:
+                <div className="space-y-2 text-xs sm:text-sm">
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                      <ArrowUpRight className="h-4 w-4" /> Ingresos:
                     </span>
-                    <span className="font-semibold text-foreground">
+                    <span className="font-semibold text-foreground text-sm">
                       +${flow.inflows.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span className="flex items-center gap-1 text-destructive">
-                      <ArrowDownRight className="h-3.5 w-3.5" /> Egresos:
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span className="flex items-center gap-1.5 text-destructive font-medium">
+                      <ArrowDownRight className="h-4 w-4" /> Egresos:
                     </span>
-                    <span className="font-semibold text-foreground">
+                    <span className="font-semibold text-foreground text-sm">
                       -${flow.outflows.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between border-t border-border pt-1 font-bold text-foreground">
+                  <div className="flex justify-between items-center border-t border-border pt-2.5 font-bold text-foreground">
                     <span>Resultado Neto:</span>
-                    <span>${flow.net.toFixed(2)}</span>
+                    <span className={`text-sm ${flow.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                      ${flow.net.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </Card>
@@ -861,65 +1153,77 @@ export default function ReportsPage() {
           </div>
 
           {/* Recent transactions table */}
-          <Card className="border-border shadow-xs">
-            <CardHeader className="py-3 px-4 border-b border-border">
-              <span className="font-semibold text-xs text-foreground">
-                Movimientos de Tesorería Registrados
-              </span>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
+          <Card className="border-border shadow-xs overflow-hidden gap-0 py-0">
+            <div className="py-4.5 px-6 border-b border-border bg-card/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-semibold text-sm sm:text-base text-foreground">
+                  Movimientos de Tesorería Registrados
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Últimas transacciones conciliadas en el período seleccionado.
+                </p>
+              </div>
+            </div>
+            <div className="p-0 overflow-x-auto">
+              <Table className="min-w-[850px] w-full">
                 <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="text-xs font-semibold">Fecha</TableHead>
-                    <TableHead className="text-xs font-semibold">Cuenta</TableHead>
-                    <TableHead className="text-xs font-semibold">Tipo</TableHead>
-                    <TableHead className="text-xs font-semibold">Método</TableHead>
-                    <TableHead className="text-xs font-semibold">Referencia</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Monto</TableHead>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fecha</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cuenta</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tipo</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Método</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Referencia</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Monto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingCashflow ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-28 text-center text-xs text-muted-foreground">
-                        <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-1 text-primary" />
-                        Cargando transacciones...
+                      <TableCell colSpan={6} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-primary" />
+                        <span className="text-sm font-medium block">Cargando transacciones de tesorería...</span>
                       </TableCell>
                     </TableRow>
                   ) : !cashflowData?.recentTransactions || cashflowData.recentTransactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-28 text-center text-xs text-muted-foreground">
-                        No se registraron movimientos en este período.
+                      <TableCell colSpan={6} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <DollarSign className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                        <span className="text-sm font-medium text-foreground block">Sin movimientos</span>
+                        No se registraron transacciones monetarias en este período.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    cashflowData.recentTransactions.map((tx) => (
-                      <TableRow key={tx.id} className="hover:bg-muted/30 text-xs">
-                        <TableCell>
+                    paginatedCashflow.map((tx) => (
+                      <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors border-b border-border/60">
+                        <TableCell className="py-4 px-5 text-xs text-muted-foreground font-medium">
                           {new Date(tx.date).toLocaleString("es-VE", {
                             dateStyle: "short",
                             timeStyle: "short",
                           })}
                         </TableCell>
-                        <TableCell className="font-medium text-foreground">
+                        <TableCell className="py-4 px-5 font-semibold text-foreground text-xs sm:text-sm">
                           {tx.accountName}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-4 px-5">
                           <Badge
-                            variant={tx.flowType === "INFLOW" ? "secondary" : "destructive"}
-                            className="text-[9px] px-1 py-0"
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-2.5 py-0.5 font-semibold border",
+                              tx.flowType === "INFLOW"
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                            )}
                           >
-                            {tx.flowType === "INFLOW" ? "INGRESO" : "EGRESO"}
+                            {tx.flowType === "INFLOW" ? "Ingreso (+)" : "Egreso (-)"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {tx.paymentMethodName}
+                        <TableCell className="py-4 px-5 text-muted-foreground text-xs font-medium">
+                          {formatPaymentMethodName(tx.paymentMethodName)}
                         </TableCell>
-                        <TableCell className="font-mono text-muted-foreground text-[11px]">
+                        <TableCell className="py-4 px-5 font-mono text-muted-foreground text-xs">
                           {tx.reference || "N/A"}
                         </TableCell>
-                        <TableCell className="text-right font-bold text-foreground">
+                        <TableCell className="py-4 px-5 text-right font-bold text-foreground text-xs sm:text-sm">
                           {tx.flowType === "INFLOW" ? "+" : "-"}
                           {tx.amount.toFixed(2)} {tx.currencyCode}
                         </TableCell>
@@ -928,171 +1232,237 @@ export default function ReportsPage() {
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
+            </div>
+
+            {/* Cashflow Pagination */}
+            <div className="flex items-center justify-between border-t border-border px-6 py-4 bg-card">
+              <span className="text-xs text-muted-foreground">
+                Mostrando página {cashflowPage} de {cashflowTotalPages} ({cashflowItems.length} movimientos)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCashflowPage((p) => Math.max(p - 1, 1))}
+                  disabled={cashflowPage <= 1}
+                  className="h-8 text-xs"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCashflowPage((p) => Math.min(p + 1, cashflowTotalPages))}
+                  disabled={cashflowPage >= cashflowTotalPages}
+                  className="h-8 text-xs"
+                >
+                  Siguiente <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </div>
+            </div>
           </Card>
         </TabsContent>
 
         {/* ========================================================================= */}
         {/* TAB 4: STREAMING & SUSCRIPCIONES */}
         {/* ========================================================================= */}
-        <TabsContent value="subscriptions" className="space-y-4">
+        <TabsContent value="subscriptions" className="space-y-6">
           {/* KPI Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Suscripciones Activas
-                </CardTitle>
-                <CreditCard className="h-4 w-4 text-emerald-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                  {subscriptionsData?.summary.totalActive || 0}
+                </span>
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <CreditCard className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Clientes al día
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">
+                {subscriptionsData?.summary.totalActive || 0}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Clientes al día
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Vencen en 7 Días
-                </CardTitle>
-                <Clock className="h-4 w-4 text-amber-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                  {subscriptionsData?.summary.expiringIn7Days || 0}
+                </span>
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Clock className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Gestión de cobranza inmediata
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400 tracking-tight">
+                {subscriptionsData?.summary.expiringIn7Days || 0}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Gestión de cobranza inmediata
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Cuentas Maestras
-                </CardTitle>
-                <Tv className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
-                  {subscriptionsData?.capacity.totalMasterAccounts || 0}
+                </span>
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <Tv className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Parque activo con proveedores
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                {subscriptionsData?.capacity.totalMasterAccounts || 0}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Parque activo con proveedores
+              </p>
             </Card>
 
-            <Card className="border-border shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">
+            <Card className="border-border shadow-xs p-5 sm:p-6 gap-0 py-5 sm:py-6">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
                   Ocupación de Pantallas
-                </CardTitle>
-                <Percent className="h-4 w-4 text-purple-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                  {subscriptionsData?.capacity.occupancyPercent || 0}%
+                </span>
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <Percent className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {subscriptionsData?.capacity.assignedProfiles || 0} de{" "}
-                  {subscriptionsData?.capacity.totalProfiles || 0} perfiles
-                </p>
-              </CardContent>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-purple-600 dark:text-purple-400 tracking-tight">
+                {subscriptionsData?.capacity.occupancyPercent || 0}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {subscriptionsData?.capacity.assignedProfiles || 0} de{" "}
+                {subscriptionsData?.capacity.totalProfiles || 0} perfiles
+              </p>
             </Card>
           </div>
 
           {/* Upcoming renewals table */}
-          <Card className="border-border shadow-xs">
-            <CardHeader className="py-3 px-4 border-b border-border">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-foreground">
+          <Card className="border-border shadow-xs overflow-hidden gap-0 py-0">
+            <div className="py-4.5 px-6 border-b border-border bg-card/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-semibold text-sm sm:text-base text-foreground">
                   Próximas Renovaciones y Cobranzas Pendientes
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => refetchSubscriptions()}
-                  className="h-7 w-7"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </Button>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Monitoreo de suscripciones próximas a expirar para corte o renovación anticipada.
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refetchSubscriptions()}
+                className="h-9 w-9 shadow-2xs"
+                title="Actualizar datos"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-0 overflow-x-auto">
+              <Table className="min-w-[850px] w-full">
                 <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="text-xs font-semibold">Cliente</TableHead>
-                    <TableHead className="text-xs font-semibold">Servicio</TableHead>
-                    <TableHead className="text-xs font-semibold">Perfil Asignado</TableHead>
-                    <TableHead className="text-xs font-semibold">Fecha Vencimiento</TableHead>
-                    <TableHead className="text-xs font-semibold text-center">Días Restantes</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Tarifa / Mes</TableHead>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliente</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Servicio</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Perfil Asignado</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fecha Vencimiento</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Estado</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Días Restantes</TableHead>
+                    <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Tarifa / Mes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingSubscriptions ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-28 text-center text-xs text-muted-foreground">
-                        <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-1 text-primary" />
-                        Cargando renovaciones de streaming...
+                      <TableCell colSpan={7} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-primary" />
+                        <span className="text-sm font-medium block">Cargando renovaciones de streaming...</span>
                       </TableCell>
                     </TableRow>
                   ) : !subscriptionsData?.upcomingRenewals || subscriptionsData.upcomingRenewals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-28 text-center text-xs text-muted-foreground">
-                        No hay suscripciones activas pendientes por renovación.
+                      <TableCell colSpan={7} className="py-16 px-6 text-center text-xs text-muted-foreground">
+                        <CreditCard className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                        <span className="text-sm font-medium text-foreground block">Sin renovaciones pendientes</span>
+                        No hay suscripciones activas pendientes por renovación en este momento.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    subscriptionsData.upcomingRenewals.map((sub) => (
-                      <TableRow key={sub.id} className="hover:bg-muted/30 text-xs">
-                        <TableCell className="font-semibold text-foreground">
-                          {sub.customerName}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[10px]">
-                            {sub.serviceName}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {sub.profileIdentifier || "Cuenta Completa"}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(sub.renewAt).toLocaleDateString("es-VE")}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge
-                            variant={
-                              sub.daysRemaining <= 3
-                                ? "destructive"
-                                : sub.daysRemaining <= 7
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                            className="text-[10px]"
-                          >
-                            {sub.daysRemaining <= 0
-                              ? "Vence Hoy"
-                              : `${sub.daysRemaining} días`}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-foreground">
-                          ${sub.amount.toFixed(2)} {sub.currencyCode}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    paginatedSubscriptions.map((sub) => {
+                      const st = formatSubscriptionStatus(sub.status);
+                      const days = formatDaysRemainingBadge(sub.daysRemaining);
+
+                      return (
+                        <TableRow key={sub.id} className="hover:bg-muted/30 transition-colors border-b border-border/60">
+                          <TableCell className="py-4 px-5 font-semibold text-foreground text-xs sm:text-sm">
+                            {sub.customerName}
+                          </TableCell>
+                          <TableCell className="py-4 px-5">
+                            <Badge variant="outline" className="text-[11px] px-2.5 py-0.5 bg-primary/10 text-primary border-primary/20">
+                              {sub.serviceName}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-4 px-5 text-muted-foreground text-xs">
+                            {sub.profileIdentifier || "Cuenta Completa"}
+                          </TableCell>
+                          <TableCell className="py-4 px-5 text-xs text-muted-foreground">
+                            {new Date(sub.renewAt).toLocaleDateString("es-VE")}
+                          </TableCell>
+                          <TableCell className="py-4 px-5 text-center">
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px] px-2.5 py-0.5 font-medium border", st.className)}
+                            >
+                              {st.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-4 px-5 text-center">
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px] px-2.5 py-0.5 font-medium border", days.className)}
+                            >
+                              {days.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-4 px-5 text-right font-bold text-foreground text-xs sm:text-sm">
+                            ${sub.amount.toFixed(2)} {sub.currencyCode}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
+            </div>
+
+            {/* Subscriptions Pagination */}
+            <div className="flex items-center justify-between border-t border-border px-6 py-4 bg-card">
+              <span className="text-xs text-muted-foreground">
+                Mostrando página {subscriptionsPage} de {subscriptionsTotalPages} ({subscriptionsItems.length} renovaciones)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSubscriptionsPage((p) => Math.max(p - 1, 1))}
+                  disabled={subscriptionsPage <= 1}
+                  className="h-8 text-xs"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSubscriptionsPage((p) => Math.min(p + 1, subscriptionsTotalPages))}
+                  disabled={subscriptionsPage >= subscriptionsTotalPages}
+                  className="h-8 text-xs"
+                >
+                  Siguiente <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </div>
+            </div>
           </Card>
         </TabsContent>
       </Tabs>

@@ -43,15 +43,106 @@ const generateDocumentNumber = (outputType?: SaleOutputType): string => {
 };
 
 /**
- * Enriquecer venta con alias de compatibilidad (orderNumber = documentNumber).
+ * Enriquecer venta con alias de compatibilidad (orderNumber = documentNumber, totalPaid = totalCollected).
  */
 const withOrderNumberAlias = (sale: any): SaleWithDetails => {
   if (!sale) return sale;
   return {
     ...sale,
     orderNumber: sale.documentNumber,
+    totalPaid:
+      sale.totalCollected !== undefined
+        ? sale.totalCollected
+        : sale.totalPaid || 0,
   };
 };
+
+/**
+ * Convierte un monto expresado en la moneda del pago a la moneda de la venta,
+ * y calcula también el monto en moneda base (USD) para la transacción contable.
+ */
+function convertPaymentAmounts({
+  amount,
+  paymentCurrency,
+  saleCurrency,
+  exchangeRateValue,
+}: {
+  amount: Prisma.Decimal;
+  paymentCurrency: { id: string; code: string; isBase?: boolean };
+  saleCurrency: { id: string; code: string; isBase?: boolean };
+  exchangeRateValue: Prisma.Decimal;
+}): {
+  amountInSaleCurrency: Prisma.Decimal;
+  baseCurrencyAmount: Prisma.Decimal;
+} {
+  // 1. Si las monedas coinciden exactamente
+  if (
+    paymentCurrency.id === saleCurrency.id ||
+    paymentCurrency.code === saleCurrency.code
+  ) {
+    const baseCurrencyAmount =
+      saleCurrency.isBase || saleCurrency.code === 'USD'
+        ? amount
+        : exchangeRateValue.gt(0)
+          ? amount.dividedBy(exchangeRateValue)
+          : amount;
+    return {
+      amountInSaleCurrency: amount,
+      baseCurrencyAmount,
+    };
+  }
+
+  // 2. Si la venta es USD (o base) y el pago es en VES
+  if (
+    (saleCurrency.isBase || saleCurrency.code === 'USD') &&
+    paymentCurrency.code === 'VES'
+  ) {
+    const amountInSale = exchangeRateValue.gt(0)
+      ? amount.dividedBy(exchangeRateValue)
+      : amount;
+    return {
+      amountInSaleCurrency: amountInSale,
+      baseCurrencyAmount: amountInSale,
+    };
+  }
+
+  // 3. Si la venta es VES y el pago es en USD
+  if (
+    saleCurrency.code === 'VES' &&
+    (paymentCurrency.isBase || paymentCurrency.code === 'USD')
+  ) {
+    const amountInSale = amount.mul(exchangeRateValue);
+    return {
+      amountInSaleCurrency: amountInSale,
+      baseCurrencyAmount: amount,
+    };
+  }
+
+  // 4. USDT u otras monedas cripto equivalentes a USD
+  if (
+    ['USD', 'USDT'].includes(saleCurrency.code) &&
+    ['USD', 'USDT'].includes(paymentCurrency.code)
+  ) {
+    return {
+      amountInSaleCurrency: amount,
+      baseCurrencyAmount: amount,
+    };
+  }
+
+  // 5. Fallback para VES con tasa activa
+  if (paymentCurrency.code === 'VES' && exchangeRateValue.gt(0)) {
+    const converted = amount.dividedBy(exchangeRateValue);
+    return {
+      amountInSaleCurrency: converted,
+      baseCurrencyAmount: converted,
+    };
+  }
+
+  return {
+    amountInSaleCurrency: amount,
+    baseCurrencyAmount: amount,
+  };
+}
 
 /**
  * Validador de importes decimales no negativos.
@@ -141,11 +232,13 @@ export const createSale = async (
     );
   }
 
-  // 2. Validar tasa de cambio si fue provista
+  // 2. Validar tasa de cambio si fue provista, o resolver la tasa activa vigente
+  let exchangeRateId = dto.exchangeRateId || null;
   let exchangeRateValue = new Prisma.Decimal(1);
-  if (dto.exchangeRateId) {
+
+  if (exchangeRateId) {
     const rateRecord = await prisma.exchangeRate.findUnique({
-      where: { id: dto.exchangeRateId },
+      where: { id: exchangeRateId },
     });
     if (!rateRecord || !rateRecord.isActive) {
       throw new SaleError(
@@ -161,6 +254,16 @@ export const createSale = async (
     );
     if (exchangeRateValue.lte(0)) {
       throw new SaleError('La tasa de cambio debe ser mayor a cero', 400);
+    }
+  } else {
+    // Si no se envió tasa explícita, resolver la tasa activa vigente en el sistema
+    const activeRate = await prisma.exchangeRate.findFirst({
+      where: { isActive: true, effectiveTo: null },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    if (activeRate) {
+      exchangeRateId = activeRate.id;
+      exchangeRateValue = activeRate.rate;
     }
   }
 
@@ -442,6 +545,7 @@ export const createSale = async (
 
       const account = await prisma.financialAccount.findUnique({
         where: { id: pay.financialAccountId },
+        include: { currency: true },
       });
       if (!account || !account.isActive) {
         throw new SaleError(
@@ -464,16 +568,29 @@ export const createSale = async (
         pay.amount,
         `el monto del pago #${payIndex}`
       );
-      totalCollected = totalCollected.plus(amount);
 
-      const payCurrencyId = pay.currencyId || account.currencyId;
-      const baseCurrencyAmount = amount.mul(exchangeRateValue);
+      const payCurrency = pay.currencyId
+        ? await prisma.currency.findUnique({ where: { id: pay.currencyId } })
+        : account.currency;
+
+      const paymentCurrencyObj = payCurrency || account.currency;
+
+      const { amountInSaleCurrency, baseCurrencyAmount } = convertPaymentAmounts({
+        amount,
+        paymentCurrency: paymentCurrencyObj,
+        saleCurrency: currency,
+        exchangeRateValue,
+      });
+
+      totalCollected = totalCollected.plus(amountInSaleCurrency);
+
+      const payCurrencyId = paymentCurrencyObj.id;
 
       processedPayments.push({
         financialAccountId: pay.financialAccountId,
         paymentMethodId: pay.paymentMethodId,
         currencyId: payCurrencyId,
-        exchangeRateId: pay.exchangeRateId || dto.exchangeRateId || null,
+        exchangeRateId: pay.exchangeRateId || exchangeRateId || null,
         amount,
         baseCurrencyAmount,
         reference: pay.reference?.trim() || null,
@@ -484,12 +601,18 @@ export const createSale = async (
     }
   }
 
-  // 7. Determinar estatus final
-  let status: SaleStatus = dto.status || 'COMPLETED';
-  if (!dto.status) {
-    if (totalCollected.gte(total)) {
+  // 7. Determinar estatus final según lo efectivamente cobrado
+  let status: SaleStatus;
+  if (dto.status === 'QUOTE') {
+    status = 'QUOTE';
+  } else if (dto.status === 'VOIDED') {
+    status = 'VOIDED';
+  } else {
+    // Si la venta no es cotización ni anulada, su estatus depende estrictamente de los abonos
+    const remaining = total.minus(totalCollected);
+    if (remaining.lte(0.01)) {
       status = 'COMPLETED';
-    } else if (totalCollected.gt(0)) {
+    } else if (totalCollected.gt(0.01)) {
       status = 'PARTIALLY_PAID';
     } else {
       status = 'PENDING_PAYMENT';
@@ -524,7 +647,7 @@ export const createSale = async (
         customerId: dto.customerId || null,
         userId: userId || null,
         currencyId: dto.currencyId,
-        exchangeRateId: dto.exchangeRateId || null,
+        exchangeRateId,
         exchangeRateValue,
         subtotal: subtotalAccum,
         taxAmount: taxAccum,
@@ -850,6 +973,7 @@ export const addSalePayment = async (
 ): Promise<SaleWithDetails> => {
   const sale = await prisma.sale.findUnique({
     where: { id: saleId },
+    include: { currency: true, exchangeRate: true },
   });
 
   if (!sale) {
@@ -876,6 +1000,7 @@ export const addSalePayment = async (
 
   const account = await prisma.financialAccount.findUnique({
     where: { id: dto.financialAccountId },
+    include: { currency: true },
   });
   if (!account || !account.isActive) {
     throw new SaleError(
@@ -895,8 +1020,40 @@ export const addSalePayment = async (
   }
 
   const amount = parsePositiveQty(dto.amount, 'el monto del abono');
-  const payCurrencyId = dto.currencyId || account.currencyId;
-  const baseCurrencyAmount = amount.mul(sale.exchangeRateValue);
+
+  let effectiveRate = new Prisma.Decimal(sale.exchangeRateValue || 1);
+  if (dto.exchangeRateValue) {
+    effectiveRate = parseDecimalNonNegative(
+      dto.exchangeRateValue,
+      'tasa de cambio'
+    );
+  } else if (dto.exchangeRateId) {
+    const rateRec = await prisma.exchangeRate.findUnique({
+      where: { id: dto.exchangeRateId },
+    });
+    if (rateRec) effectiveRate = rateRec.rate;
+  } else if (effectiveRate.lte(1)) {
+    const activeRate = await prisma.exchangeRate.findFirst({
+      where: { isActive: true, effectiveTo: null },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    if (activeRate) {
+      effectiveRate = activeRate.rate;
+    }
+  }
+
+  const payCurrency = dto.currencyId
+    ? await prisma.currency.findUnique({ where: { id: dto.currencyId } })
+    : account.currency;
+
+  const paymentCurrencyObj = payCurrency || account.currency;
+
+  const { amountInSaleCurrency, baseCurrencyAmount } = convertPaymentAmounts({
+    amount,
+    paymentCurrency: paymentCurrencyObj,
+    saleCurrency: sale.currency,
+    exchangeRateValue: effectiveRate,
+  });
 
   return await prisma.$transaction(async (tx) => {
     // 1. Crear transacción de cobro
@@ -907,7 +1064,7 @@ export const addSalePayment = async (
         saleId,
         financialAccountId: dto.financialAccountId,
         paymentMethodId: dto.paymentMethodId,
-        currencyId: payCurrencyId,
+        currencyId: paymentCurrencyObj.id,
         exchangeRateId: dto.exchangeRateId || sale.exchangeRateId,
         userId: userId || null,
         amount,
@@ -926,8 +1083,9 @@ export const addSalePayment = async (
     });
 
     // 3. Actualizar monto cobrado y estatus de la venta
-    const newTotalCollected = sale.totalCollected.plus(amount);
-    const newStatus: SaleStatus = newTotalCollected.gte(sale.total)
+    const newTotalCollected = sale.totalCollected.plus(amountInSaleCurrency);
+    const remaining = sale.total.minus(newTotalCollected);
+    const newStatus: SaleStatus = remaining.lte(0.01)
       ? 'COMPLETED'
       : 'PARTIALLY_PAID';
 

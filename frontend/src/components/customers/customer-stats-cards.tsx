@@ -59,12 +59,12 @@ export function CustomerStatsCards({
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (
-          <Card key={stat.title} className="shadow-xs border-border/80">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <Card key={stat.title} className="shadow-xs border-border/80 p-5 sm:p-6 gap-0">
+            <CardHeader className="flex flex-row items-center justify-between p-0 pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
@@ -72,7 +72,7 @@ export function CustomerStatsCards({
                 <Icon className="h-4 w-4" />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <div className="text-2xl font-bold tracking-tight text-foreground">
                 {stat.value}
               </div>

@@ -31,6 +31,8 @@ import userRoutes from '#routes/user.routes.js';
 import roleRoutes from '#routes/role.routes.js';
 import permissionRoutes from '#routes/permission.routes.js';
 import reportRoutes from '#routes/report.routes.js';
+import notificationRoutes from '#routes/notification.routes.js';
+import settingRoutes from '#routes/setting.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec, swaggerUiOptions } from '#docs/swagger.js';
 
@@ -52,6 +54,7 @@ app.use(
 
 // Estatus del servidor
 app.use('/health', getHealth);
+app.use('/api/health', getHealth);
 
 // Rutas de la API (/api/...)
 app.use('/api/auth', authRoutes);
@@ -80,6 +83,9 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/settings', settingRoutes);
+app.use('/settings', settingRoutes);
 
 // Middleware global de captura de errores
 app.use((err: any, req: Request, res: Response, _next: NextFunction) => {

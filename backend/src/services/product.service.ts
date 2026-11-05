@@ -298,6 +298,22 @@ export const getProducts = async (
             slug: true,
           },
         },
+        inventories: {
+          select: {
+            id: true,
+            locationId: true,
+            currentQuantity: true,
+            reservedQuantity: true,
+            specificLocation: true,
+            location: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             inventories: true,

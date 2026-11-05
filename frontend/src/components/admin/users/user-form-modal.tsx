@@ -110,7 +110,7 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
         onOpenChange(val);
       }}
     >
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -221,18 +221,17 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
                 return (
                   <label
                     key={role.id}
-                    onClick={() => handleToggleRole(role.id)}
-                    className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer text-xs transition-colors ${
+                    className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer text-xs transition-colors select-none ${
                       isSelected
-                        ? "border-primary bg-primary/5 text-primary"
+                        ? "border-primary bg-primary/5 text-primary shadow-2xs"
                         : "border-border hover:bg-muted/50 text-foreground"
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => {}}
-                      className="mt-0.5 rounded border-muted-foreground/30 text-primary focus:ring-primary h-3.5 w-3.5"
+                      onChange={() => handleToggleRole(role.id)}
+                      className="mt-0.5 rounded border-muted-foreground/30 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
                     />
                     <div className="flex-1 overflow-hidden">
                       <div className="font-semibold flex items-center justify-between">

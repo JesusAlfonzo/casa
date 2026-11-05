@@ -81,7 +81,7 @@ export function AccountAdjustModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-lg p-6 sm:p-7">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">

@@ -58,6 +58,18 @@ export const openApiPaths: Record<string, any> = {
       },
     },
   },
+  '/api/health': {
+    get: {
+      tags: ['Health'],
+      summary: 'Verificar salud del servidor y conectividad a base de datos (/api)',
+      responses: {
+        200: okResponse(
+          'Servidor y base de datos PostgreSQL en funcionamiento'
+        ),
+        503: errorResponse('Fallo de conexión con la base de datos'),
+      },
+    },
+  },
 
   // ==========================================
   // AUTENTICACIÓN Y SESIONES (Better Auth)

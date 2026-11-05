@@ -361,7 +361,7 @@ export default function StreamingAccountsPage() {
                       <Badge variant="outline" className="text-[10px] mb-1 font-bold">
                         {account.service?.name || "Servicio"}
                       </Badge>
-                      <CardTitle className="text-sm font-semibold truncate max-w-[210px] text-foreground">
+                      <CardTitle className="text-sm font-semibold truncate min-w-0 flex-1 text-foreground">
                         {account.accessEmail}
                       </CardTitle>
                     </div>

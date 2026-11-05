@@ -274,30 +274,44 @@ export default function ExchangeRatesPage() {
 
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[850px]">
               <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[180px]">Par Cambiario</TableHead>
-                  <TableHead>Tasa / Cotización</TableHead>
-                  <TableHead>Fuente / Origen</TableHead>
-                  <TableHead>Vigente Desde</TableHead>
-                  <TableHead>Vigente Hasta</TableHead>
-                  <TableHead className="text-center">Estado</TableHead>
-                  <TableHead className="w-[60px] text-right">Acción</TableHead>
+                <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
+                  <TableHead className="h-12 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[220px]">
+                    Par Cambiario
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Tasa / Cotización
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Fuente / Origen
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Vigente Desde
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Vigente Hasta
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
+                    Estado
+                  </TableHead>
+                  <TableHead className="h-12 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right w-[80px]">
+                    Acción
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 4 }).map((_, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell colSpan={7} className="h-12 text-center">
-                        <div className="h-4 w-3/4 animate-pulse rounded bg-muted mx-auto" />
+                    <TableRow key={idx} className="border-b border-border/60">
+                      <TableCell colSpan={7} className="h-16 text-center py-4 px-5">
+                        <div className="h-5 w-3/4 animate-pulse rounded bg-muted/60 mx-auto" />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : rates.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center">
+                    <TableCell colSpan={7} className="h-36 text-center py-6">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <BadgeDollarSign className="h-8 w-8 text-muted-foreground/60" />
                         <p className="text-sm font-medium text-foreground">
@@ -314,62 +328,94 @@ export default function ExchangeRatesPage() {
                     const rateNum = Number(r.rate || 0);
 
                     return (
-                      <TableRow key={r.id} className="transition-colors">
+                      <TableRow key={r.id} className="hover:bg-muted/20 transition-colors border-b border-border/60">
                         {/* Par */}
-                        <TableCell>
-                          <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
-                            <span>{source}</span>
-                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                            <span>{target}</span>
+                        <TableCell className="py-4 px-5">
+                          <div className="flex items-center gap-2 font-mono text-xs font-semibold">
+                            <span className="px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
+                              {source}
+                            </span>
+                            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="px-2 py-1 rounded bg-muted text-foreground border border-border">
+                              {target}
+                            </span>
                           </div>
                         </TableCell>
 
                         {/* Valor */}
-                        <TableCell>
-                          <div className="font-mono text-sm font-bold text-foreground">
+                        <TableCell className="py-4 px-4">
+                          <div className="font-mono text-base font-bold text-foreground">
                             {targetSymbol} {rateNum.toFixed(r.targetCurrency?.decimals || 4)}
                           </div>
+                          <span className="text-[11px] font-mono text-muted-foreground block">
+                            x 1 {source}
+                          </span>
                         </TableCell>
 
                         {/* Fuente */}
-                        <TableCell className="text-xs text-muted-foreground">
-                          {r.source || "No especificada"}
+                        <TableCell className="py-4 px-4 text-xs">
+                          <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-normal bg-background border-border/80">
+                            {r.source || "No especificada"}
+                          </Badge>
                         </TableCell>
 
                         {/* Desde */}
-                        <TableCell className="text-xs font-mono text-muted-foreground">
-                          {new Date(r.effectiveFrom).toLocaleString()}
+                        <TableCell className="py-4 px-4 text-xs">
+                          <div className="space-y-0.5">
+                            <span className="text-foreground font-medium block">
+                              {new Date(r.effectiveFrom).toLocaleDateString("es-VE")}
+                            </span>
+                            <span className="text-[11px] font-mono text-muted-foreground">
+                              {new Date(r.effectiveFrom).toLocaleTimeString("es-VE", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
                         </TableCell>
 
                         {/* Hasta */}
-                        <TableCell className="text-xs font-mono text-muted-foreground">
+                        <TableCell className="py-4 px-4 text-xs">
                           {r.effectiveTo ? (
-                            new Date(r.effectiveTo).toLocaleString()
+                            <div className="space-y-0.5">
+                              <span className="text-foreground font-medium block">
+                                {new Date(r.effectiveTo).toLocaleDateString("es-VE")}
+                              </span>
+                              <span className="text-[11px] font-mono text-muted-foreground">
+                                {new Date(r.effectiveTo).toLocaleTimeString("es-VE", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
                           ) : (
-                            <span className="text-primary font-medium">Vigente actual</span>
+                            <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary font-medium border-primary/20">
+                              Vigente actual
+                            </Badge>
                           )}
                         </TableCell>
 
                         {/* Estado */}
-                        <TableCell className="text-center">
+                        <TableCell className="py-4 px-4 text-center">
                           <Badge
                             variant={r.isActive ? "default" : "secondary"}
-                            className="text-[10px]"
+                            className="text-[11px] font-medium px-2 py-0.5"
                           >
                             {r.isActive ? "Activa" : "Histórica"}
                           </Badge>
                         </TableCell>
 
                         {/* Eliminar */}
-                        <TableCell className="text-right">
+                        <TableCell className="py-4 px-5 text-right">
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                             onClick={() => {
                               setRateToDelete(r);
                               setIsDeleteDialogOpen(true);
                             }}
+                            title="Eliminar tasa"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -383,8 +429,8 @@ export default function ExchangeRatesPage() {
           </div>
 
           {/* Paginación */}
-          {meta.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          {!isLoading && rates.length > 0 && (
+            <div className="flex items-center justify-between border-t border-border px-6 py-4">
               <span className="text-xs text-muted-foreground">
                 Página {meta.page} de {meta.totalPages} ({meta.total} tasas totales)
               </span>
@@ -424,7 +470,7 @@ export default function ExchangeRatesPage() {
 
       {/* Diálogo Eliminar */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-md p-6">
           <DialogHeader>
             <DialogTitle className="text-base text-destructive">
               ¿Eliminar Registro de Tasa?

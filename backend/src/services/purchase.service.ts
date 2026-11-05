@@ -159,7 +159,13 @@ export const createPurchase = async (
     }
   }
 
-  // 5. Procesar renglones y calcular subtotales
+  // 5. Determinar almacén por defecto para ítems físicos
+  const defaultLocation = await prisma.location.findFirst({
+    where: { isActive: true },
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+  });
+
+  // 6. Procesar renglones y calcular subtotales
   let totalSubtotal = new Prisma.Decimal(0);
   let totalTax = new Prisma.Decimal(0);
   let totalDiscount = new Prisma.Decimal(0);
@@ -198,14 +204,17 @@ export const createPurchase = async (
       }
     }
 
-    // Validar ubicación destino si se suministró
-    if (item.destinationLocationId) {
+    // Resolver y validar ubicación destino
+    const destLocId =
+      item.destinationLocationId || (item.productId ? defaultLocation?.id : null) || null;
+
+    if (destLocId) {
       const loc = await prisma.location.findUnique({
-        where: { id: item.destinationLocationId },
+        where: { id: destLocId },
       });
       if (!loc || !loc.isActive) {
         throw new PurchaseError(
-          `La ubicación destino ID "${item.destinationLocationId}" no existe o está inactiva`,
+          `La ubicación destino ID "${destLocId}" no existe o está inactiva`,
           404
         );
       }
@@ -224,7 +233,7 @@ export const createPurchase = async (
     processedItems.push({
       productId: item.productId || null,
       serviceId: item.serviceId || null,
-      destinationLocationId: item.destinationLocationId || null,
+      destinationLocationId: destLocId,
       description: item.description?.trim() || null,
       quantity: qty,
       receivedQuantity: dto.receiveOnCreate ? qty : new Prisma.Decimal(0),
@@ -240,7 +249,7 @@ export const createPurchase = async (
     ? 'RECEIVED'
     : dto.status || 'PENDING';
 
-  // 6. Transacción atómica de creación
+  // 7. Transacción atómica de creación
   const purchase = await prisma.$transaction(async (tx) => {
     const createdPurchase = await tx.purchase.create({
       data: {
@@ -456,6 +465,23 @@ export const getPurchases = async (
         user: {
           select: { id: true, name: true, email: true },
         },
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                sku: true,
+                name: true,
+                measurementUnit: {
+                  select: { id: true, name: true, abbreviation: true },
+                },
+              },
+            },
+            destinationLocation: {
+              select: { id: true, code: true, name: true },
+            },
+          },
+        },
         _count: {
           select: {
             items: true,
@@ -591,9 +617,9 @@ export const receivePurchaseItems = async (
     for (const item of purchase.items) {
       // Determinar la cantidad a recibir
       let qtyToReceive: Prisma.Decimal;
+      const itemInput = dto.items?.find((i) => i.purchaseItemId === item.id);
 
       if (dto.items && dto.items.length > 0) {
-        const itemInput = dto.items.find((i) => i.purchaseItemId === item.id);
         if (!itemInput) continue;
         qtyToReceive = parsePositiveQty(
           itemInput.receivedQuantity,
@@ -630,12 +656,30 @@ export const receivePurchaseItems = async (
 
       // Si es un producto con destino a almacén, acreditar existencias
       if (item.productId) {
-        const destinationLocId = item.destinationLocationId;
+        let destinationLocId =
+          itemInput?.destinationLocationId || item.destinationLocationId;
+
+        if (!destinationLocId) {
+          const defaultLoc = await tx.location.findFirst({
+            where: { isActive: true },
+            orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          });
+          destinationLocId = defaultLoc?.id || null;
+        }
+
         if (!destinationLocId) {
           throw new PurchaseError(
-            `El producto en el ítem "${item.description || item.productId}" no tiene una ubicación de almacén destino configurada`,
+            `No hay ningún almacén activo configurado en el sistema para recibir el producto "${item.description || item.productId}"`,
             400
           );
+        }
+
+        // Asegurar que el purchaseItem mantenga la ubicación destino registrada
+        if (item.destinationLocationId !== destinationLocId) {
+          await tx.purchaseItem.update({
+            where: { id: item.id },
+            data: { destinationLocationId: destinationLocId },
+          });
         }
 
         let inv = await tx.inventory.findUnique({

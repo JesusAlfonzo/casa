@@ -140,7 +140,7 @@ export function RoleFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -277,8 +277,7 @@ export function RoleFormModal({
                           return (
                             <label
                               key={perm.id}
-                              onClick={() => handleTogglePermission(perm.id)}
-                              className={`flex items-start gap-2 rounded-md border p-2 cursor-pointer text-xs transition-colors ${
+                              className={`flex items-start gap-2 rounded-md border p-2 cursor-pointer text-xs transition-colors select-none ${
                                 isChecked
                                   ? "border-primary/50 bg-primary/5 text-primary"
                                   : "border-border/60 hover:bg-muted/40 text-foreground"
@@ -287,8 +286,8 @@ export function RoleFormModal({
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => {}}
-                                className="mt-0.5 rounded border-muted-foreground/30 text-primary focus:ring-primary h-3.5 w-3.5"
+                                onChange={() => handleTogglePermission(perm.id)}
+                                className="mt-0.5 rounded border-muted-foreground/30 text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
                               />
                               <div className="flex-1 overflow-hidden">
                                 <div className="font-medium text-[11px]">

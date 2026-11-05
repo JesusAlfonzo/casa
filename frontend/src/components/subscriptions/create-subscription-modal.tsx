@@ -145,7 +145,7 @@ export function CreateSubscriptionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-4 pb-2 border-b bg-muted/20">
           <div className="flex items-center gap-2 text-primary">
             <CreditCard className="h-5 w-5" />

@@ -724,9 +724,9 @@ export const deleteRole = async (id: string): Promise<Role> => {
     throw new RbacError('El rol especificado no existe', 404);
   }
 
-  if (role.isSystem) {
+  if (role.name === 'ADMIN') {
     throw new RbacError(
-      'No se pueden eliminar los roles predeterminados del sistema',
+      'No se puede eliminar el rol de administrador principal del sistema',
       400
     );
   }

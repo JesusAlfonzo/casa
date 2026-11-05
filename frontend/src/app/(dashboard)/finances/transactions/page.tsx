@@ -10,6 +10,7 @@ import {
 } from "@/types/finance";
 import { CreateTransactionModal } from "@/components/finances/create-transaction-modal";
 import { TransactionDetailSheet } from "@/components/finances/transaction-detail-sheet";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   Receipt,
   Search,
@@ -23,6 +24,8 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +42,9 @@ import {
 
 export default function PaymentTransactionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  // Delay de 400ms para evitar consultas continuas en cada pulsación del buscador
+  const debouncedSearch = useDebounce(searchTerm, 400);
+
   const [flowFilter, setFlowFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [accountFilter, setAccountFilter] = useState<string>("ALL");
@@ -70,12 +76,12 @@ export default function PaymentTransactionsPage() {
 
   const accounts = Array.isArray(accountsData) ? accountsData : [];
 
-  // Consulta de Transacciones de Pago
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  // Consulta de Transacciones de Pago con búsqueda con retardo (debouncedSearch)
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: [
       "payment-transactions",
       page,
-      searchTerm,
+      debouncedSearch,
       flowFilter,
       statusFilter,
       accountFilter,
@@ -86,7 +92,7 @@ export default function PaymentTransactionsPage() {
       const params = new URLSearchParams();
       params.append("page", page.toString());
       params.append("limit", limit.toString());
-      if (searchTerm) params.append("search", searchTerm);
+      if (debouncedSearch) params.append("search", debouncedSearch);
       if (flowFilter !== "ALL") params.append("flowType", flowFilter);
       if (statusFilter !== "ALL") params.append("status", statusFilter);
       if (accountFilter !== "ALL") params.append("financialAccountId", accountFilter);
@@ -142,7 +148,7 @@ export default function PaymentTransactionsPage() {
               {meta.total} {meta.total === 1 ? "movimiento" : "movimientos"}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-1">
             Auditoría de ingresos por ventas, egresos por compras a proveedores y movimientos directos de tesorería.
           </p>
         </div>
@@ -185,22 +191,22 @@ export default function PaymentTransactionsPage() {
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* KPI Cards Grid con espaciado amplio */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-border shadow-xs hover:border-emerald-500/40 transition-colors">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Total Cobrado / Ingresos (Base $)
             </CardTitle>
-            <div className="rounded-md bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
               <TrendingUp className="h-4 w-4" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-1">
             <div className="text-2xl font-bold tracking-tight font-mono text-emerald-600 dark:text-emerald-400">
-              +${totalInflow.toFixed(2)}
+              +${totalInflow.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1.5">
               Entradas liquidadas en el período seleccionado
             </p>
           </CardContent>
@@ -208,33 +214,33 @@ export default function PaymentTransactionsPage() {
 
         <Card className="border-border shadow-xs hover:border-rose-500/40 transition-colors">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Total Pagado / Egresos (Base $)
             </CardTitle>
-            <div className="rounded-md bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400">
+            <div className="rounded-lg bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400">
               <TrendingDown className="h-4 w-4" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-1">
             <div className="text-2xl font-bold tracking-tight font-mono text-rose-600 dark:text-rose-400">
-              -${totalOutflow.toFixed(2)}
+              -${totalOutflow.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1.5">
               Salidas a proveedores y gastos liquidados
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-border shadow-xs hover:border-primary/40 transition-colors">
+        <Card className="border-border shadow-xs hover:border-primary/40 transition-colors sm:col-span-2 lg:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Flujo de Caja Neto
             </CardTitle>
-            <div className="rounded-md bg-primary/10 p-2 text-primary">
+            <div className="rounded-lg bg-primary/10 p-2 text-primary">
               <DollarSign className="h-4 w-4" />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-1">
             <div
               className={`text-2xl font-bold tracking-tight font-mono ${
                 netFlow >= 0
@@ -242,22 +248,22 @@ export default function PaymentTransactionsPage() {
                   : "text-rose-600 dark:text-rose-400"
               }`}
             >
-              {netFlow >= 0 ? "+" : ""}${netFlow.toFixed(2)}
+              {netFlow >= 0 ? "+" : ""}${netFlow.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1.5">
               Diferencia neta entre cobros y desembolsos
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Barra de Filtros */}
+      {/* Barra de Filtros y Búsqueda */}
       <Card className="border-border shadow-xs">
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="p-5 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Buscador */}
+            {/* Buscador con delay debounce */}
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por referencia o notas..."
                 value={searchTerm}
@@ -265,14 +271,17 @@ export default function PaymentTransactionsPage() {
                   setSearchTerm(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 text-xs"
+                className="pl-9 pr-8 text-xs h-9"
               />
+              {searchTerm !== debouncedSearch && (
+                <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
             </div>
 
             {/* Filtro Flujo */}
             <div>
               <select
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-9 shadow-2xs"
                 value={flowFilter}
                 onChange={(e) => {
                   setFlowFilter(e.target.value);
@@ -288,7 +297,7 @@ export default function PaymentTransactionsPage() {
             {/* Filtro Estado */}
             <div>
               <select
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-9 shadow-2xs"
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value);
@@ -306,7 +315,7 @@ export default function PaymentTransactionsPage() {
             {/* Filtro Cuenta Financiera */}
             <div>
               <select
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-9 shadow-2xs"
                 value={accountFilter}
                 onChange={(e) => {
                   setAccountFilter(e.target.value);
@@ -316,17 +325,17 @@ export default function PaymentTransactionsPage() {
                 <option value="ALL">Todas las Cuentas</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.name} ({a.currency?.code})
+                    {a.name} ({a.currency?.code || "USD"})
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Rango de Fechas */}
-          <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border text-xs">
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Filter className="h-3.5 w-3.5" />
+          {/* Rango de Fechas y Limpieza */}
+          <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-border text-xs">
+            <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+              <Filter className="h-3.5 w-3.5 text-primary" />
               <span>Rango de Fecha:</span>
             </span>
             <div className="flex items-center gap-2">
@@ -337,9 +346,9 @@ export default function PaymentTransactionsPage() {
                   setFromDate(e.target.value);
                   setPage(1);
                 }}
-                className="h-8 w-36 text-xs"
+                className="h-9 w-38 text-xs"
               />
-              <span className="text-muted-foreground">hasta</span>
+              <span className="text-muted-foreground font-medium">hasta</span>
               <Input
                 type="date"
                 value={toDate}
@@ -347,7 +356,7 @@ export default function PaymentTransactionsPage() {
                   setToDate(e.target.value);
                   setPage(1);
                 }}
-                className="h-8 w-36 text-xs"
+                className="h-9 w-38 text-xs"
               />
             </div>
 
@@ -369,7 +378,7 @@ export default function PaymentTransactionsPage() {
                   setToDate("");
                   setPage(1);
                 }}
-                className="h-8 text-xs text-muted-foreground hover:text-foreground ml-auto"
+                className="h-9 text-xs text-muted-foreground hover:text-foreground ml-auto"
               >
                 Limpiar Filtros
               </Button>
@@ -378,43 +387,108 @@ export default function PaymentTransactionsPage() {
         </CardContent>
       </Card>
 
-      {/* Tabla de Transacciones */}
-      <Card className="border-border shadow-xs">
+      {/* Tabla de Transacciones Espaciosa y Cómoda */}
+      <Card className="border-border shadow-xs overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="min-w-[1020px]">
               <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[120px]">Fecha</TableHead>
-                  <TableHead>Flujo</TableHead>
-                  <TableHead>Cuenta Financiera</TableHead>
-                  <TableHead>Método & Referencia</TableHead>
-                  <TableHead>Concepto / Operación</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="text-center">Estado</TableHead>
-                  <TableHead className="w-[60px] text-right"></TableHead>
+                <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
+                  <TableHead className="h-12 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[130px]">
+                    Fecha
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[120px]">
+                    Flujo
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[220px]">
+                    Cuenta Financiera
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[180px]">
+                    Método & Referencia
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Concepto / Operación
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right w-[140px]">
+                    Monto
+                  </TableHead>
+                  <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center w-[120px]">
+                    Estado
+                  </TableHead>
+                  <TableHead className="h-12 px-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right w-[90px]">
+                    Acciones
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 6 }).map((_, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell colSpan={8} className="h-14 text-center">
-                        <div className="h-4 w-3/4 animate-pulse rounded bg-muted mx-auto" />
+                    <TableRow key={idx} className="border-b border-border/60">
+                      <TableCell colSpan={8} className="py-5 px-5 text-center">
+                        <div className="h-5 w-3/4 animate-pulse rounded bg-muted/60 mx-auto" />
                       </TableCell>
                     </TableRow>
                   ))
-                ) : transactions.length === 0 ? (
+                ) : isError ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-36 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Receipt className="h-8 w-8 text-muted-foreground/60" />
-                        <p className="text-sm font-medium text-foreground">
-                          No se encontraron transacciones registradas
+                    <TableCell colSpan={8} className="py-12 px-6 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                        <AlertCircle className="h-8 w-8 text-destructive" />
+                        <p className="text-sm font-semibold text-foreground">
+                          Error al cargar transacciones
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Las ventas cobradas y compras liquidadas se reflejarán automáticamente aquí.
+                          {(error as Error)?.message || "Ocurrió un error inesperado al consultar los movimientos."}
                         </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => refetch()}
+                          className="mt-2 text-xs"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                          Reintentar
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : transactions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-14 px-6 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Receipt className="h-9 w-9 text-muted-foreground/60" />
+                        <p className="text-sm font-semibold text-foreground">
+                          No se encontraron transacciones registradas
+                        </p>
+                        <p className="text-xs text-muted-foreground max-w-sm">
+                          Las ventas cobradas, compras a proveedores y movimientos directos liquidados se reflejarán aquí.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setDefaultFlow("INFLOW");
+                              setIsCreateOpen(true);
+                            }}
+                            className="text-xs"
+                          >
+                            <ArrowDownLeft className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                            Nuevo Ingreso
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setDefaultFlow("OUTFLOW");
+                              setIsCreateOpen(true);
+                            }}
+                            className="text-xs"
+                          >
+                            <ArrowUpRight className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                            Nuevo Egreso
+                          </Button>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -427,43 +501,47 @@ export default function PaymentTransactionsPage() {
                     return (
                       <TableRow
                         key={tx.id}
-                        className="cursor-pointer hover:bg-muted/40 transition-colors"
+                        className="cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/60"
                         onClick={() => {
                           setSelectedTransaction(tx);
                           setIsDetailOpen(true);
                         }}
                       >
-                        {/* Fecha */}
-                        <TableCell className="text-xs text-muted-foreground font-mono">
-                          {new Date(tx.paidAt).toLocaleDateString()}
+                        {/* Fecha con espaciado amplio */}
+                        <TableCell className="py-4.5 px-5 text-xs text-muted-foreground font-mono">
+                          {new Date(tx.paidAt || tx.createdAt).toLocaleDateString("es-VE", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                          })}
                         </TableCell>
 
                         {/* Flujo */}
-                        <TableCell>
+                        <TableCell className="py-4.5 px-4">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
                               isInflow
                                 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                                 : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                             }`}
                           >
                             {isInflow ? (
-                              <ArrowDownLeft className="h-3 w-3" />
+                              <ArrowDownLeft className="h-3.5 w-3.5" />
                             ) : (
-                              <ArrowUpRight className="h-3 w-3" />
+                              <ArrowUpRight className="h-3.5 w-3.5" />
                             )}
                             {isInflow ? "Ingreso" : "Egreso"}
                           </span>
                         </TableCell>
 
                         {/* Cuenta Financiera */}
-                        <TableCell>
-                          <div className="text-xs">
-                            <span className="font-semibold text-foreground block">
+                        <TableCell className="py-4.5 px-4">
+                          <div className="text-xs space-y-0.5">
+                            <span className="font-semibold text-foreground block truncate max-w-[200px]">
                               {tx.financialAccount?.name || "Cuenta no disponible"}
                             </span>
                             {tx.financialAccount?.bankName && (
-                              <span className="text-[11px] text-muted-foreground">
+                              <span className="text-[11px] text-muted-foreground block truncate max-w-[200px]">
                                 {tx.financialAccount.bankName}
                               </span>
                             )}
@@ -471,17 +549,17 @@ export default function PaymentTransactionsPage() {
                         </TableCell>
 
                         {/* Método & Referencia */}
-                        <TableCell>
-                          <div className="text-xs">
+                        <TableCell className="py-4.5 px-4">
+                          <div className="text-xs space-y-0.5">
                             <span className="text-foreground block font-medium">
                               {tx.paymentMethod?.name || "Desconocido"}
                             </span>
                             {tx.reference ? (
-                              <span className="font-mono text-[11px] text-muted-foreground">
+                              <span className="font-mono text-[11px] text-muted-foreground block">
                                 Ref: {tx.reference}
                               </span>
                             ) : (
-                              <span className="text-[10px] text-muted-foreground italic">
+                              <span className="text-[11px] text-muted-foreground/60 italic block">
                                 Sin ref.
                               </span>
                             )}
@@ -489,8 +567,8 @@ export default function PaymentTransactionsPage() {
                         </TableCell>
 
                         {/* Concepto / Operación */}
-                        <TableCell>
-                          <div className="text-xs max-w-[220px] truncate">
+                        <TableCell className="py-4.5 px-4">
+                          <div className="text-xs max-w-[240px] truncate">
                             {tx.saleId ? (
                               <span className="text-primary font-medium">
                                 Cobro Venta #{tx.saleId.slice(0, 8)}
@@ -502,15 +580,15 @@ export default function PaymentTransactionsPage() {
                             ) : tx.notes ? (
                               <span className="text-foreground">{tx.notes}</span>
                             ) : (
-                              <span className="text-muted-foreground italic">
-                                Movimiento directo
+                              <span className="text-muted-foreground/70 italic">
+                                Movimiento directo de caja
                               </span>
                             )}
                           </div>
                         </TableCell>
 
                         {/* Monto */}
-                        <TableCell className="text-right">
+                        <TableCell className="py-4.5 px-4 text-right">
                           <div
                             className={`font-mono text-sm font-bold ${
                               isInflow
@@ -519,15 +597,15 @@ export default function PaymentTransactionsPage() {
                             }`}
                           >
                             {isInflow ? "+" : "-"}
-                            {symbol} {amount.toFixed(2)}
+                            {symbol} {amount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
-                          <span className="text-[10px] text-muted-foreground font-mono">
+                          <span className="text-[11px] text-muted-foreground font-mono">
                             {tx.currency?.code || "USD"}
                           </span>
                         </TableCell>
 
                         {/* Estado */}
-                        <TableCell className="text-center">
+                        <TableCell className="py-4.5 px-4 text-center">
                           <Badge
                             variant={
                               tx.status === "VERIFIED"
@@ -536,25 +614,33 @@ export default function PaymentTransactionsPage() {
                                   ? "outline"
                                   : "destructive"
                             }
-                            className="text-[10px]"
+                            className="text-[11px] font-medium px-2 py-0.5"
                           >
-                            {tx.status}
+                            {tx.status === "VERIFIED"
+                              ? "Verificado"
+                              : tx.status === "PENDING"
+                                ? "Pendiente"
+                                : tx.status === "REFUNDED"
+                                  ? "Anulado"
+                                  : tx.status}
                           </Badge>
                         </TableCell>
 
                         {/* Acción */}
-                        <TableCell className="text-right">
+                        <TableCell className="py-4.5 px-5 text-right">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-7 w-7 p-0"
+                            className="h-8 px-2.5 text-xs shadow-2xs gap-1 hover:border-primary hover:text-primary"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedTransaction(tx);
                               setIsDetailOpen(true);
                             }}
+                            title="Ver Detalle de Transacción"
                           >
-                            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>Ver</span>
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -565,13 +651,13 @@ export default function PaymentTransactionsPage() {
             </Table>
           </div>
 
-          {/* Paginación */}
-          {meta.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          {/* Paginación con espaciado amplio */}
+          {!isLoading && transactions.length > 0 && (
+            <div className="flex items-center justify-between border-t border-border px-6 py-4">
               <span className="text-xs text-muted-foreground">
                 Página {meta.page} de {meta.totalPages} ({meta.total} transacciones totales)
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <Button
                   variant="outline"
                   size="sm"

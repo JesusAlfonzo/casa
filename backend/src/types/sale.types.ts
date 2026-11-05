@@ -35,6 +35,7 @@ export interface CreateSalePaymentDTO {
   amount: number | string | Prisma.Decimal;
   currencyId?: string;
   exchangeRateId?: string | null;
+  exchangeRateValue?: number | string | Prisma.Decimal;
   reference?: string | null;
   receiptUrl?: string | null;
   notes?: string | null;
@@ -85,6 +86,7 @@ export interface SaleItemWithDetails extends SaleItem {
 
 export interface SaleWithDetails extends Sale {
   orderNumber?: string;
+  totalPaid?: Prisma.Decimal | number;
   customer: Customer | null;
   user: User | null;
   currency: Currency;

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   type Customer,
   type PaginatedCustomersResult,
@@ -18,6 +19,7 @@ import { UserPlus, RefreshCw } from "lucide-react";
 
 export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 400);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
   const [page, setPage] = useState(1);
   const limit = 10;
@@ -34,8 +36,8 @@ export default function CustomersPage() {
   const params = new URLSearchParams();
   params.set("page", String(page));
   params.set("limit", String(limit));
-  if (searchTerm.trim()) {
-    params.set("search", searchTerm.trim());
+  if (debouncedSearch.trim()) {
+    params.set("search", debouncedSearch.trim());
   }
   if (statusFilter === "ACTIVE") {
     params.set("isActive", "true");
@@ -50,7 +52,7 @@ export default function CustomersPage() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ["customers", page, searchTerm, statusFilter],
+    queryKey: ["customers", page, debouncedSearch, statusFilter],
     queryFn: async () => {
       return api.get<PaginatedCustomersResult>(
         `/customers?${params.toString()}`
@@ -97,7 +99,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8 pb-10">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -148,6 +150,7 @@ export default function CustomersPage() {
       <CustomerTable
         customers={customers}
         isLoading={isLoading}
+        isSearching={searchTerm !== debouncedSearch}
         page={page}
         totalPages={totalPages}
         total={total}

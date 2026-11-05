@@ -73,6 +73,24 @@ export function CreatePurchaseModal({
     },
   ]);
 
+  // Synchronize default warehouse and currency when loaded
+  const [prevDefaultLoc, setPrevDefaultLoc] = useState(defaultLocId);
+  if (defaultLocId && defaultLocId !== prevDefaultLoc) {
+    setPrevDefaultLoc(defaultLocId);
+    setItems((prev) =>
+      prev.map((i) => ({
+        ...i,
+        destinationLocationId: i.destinationLocationId || defaultLocId,
+      }))
+    );
+  }
+
+  const [prevDefaultCurr, setPrevDefaultCurr] = useState(defaultCurrId);
+  if (defaultCurrId && !currencyId && defaultCurrId !== prevDefaultCurr) {
+    setPrevDefaultCurr(defaultCurrId);
+    setCurrencyId(defaultCurrId);
+  }
+
   const handleAddItem = () => {
     setItems((prev) => [
       ...prev,
@@ -159,7 +177,7 @@ export function CreatePurchaseModal({
     setErrorMsg(null);
     const purchaseItems: CreatePurchaseItemInput[] = items.map((i) => ({
       productId: i.productId,
-      destinationLocationId: i.destinationLocationId || defaultLocId,
+      destinationLocationId: i.destinationLocationId || defaultLocId || locations[0]?.id || "",
       quantity: i.quantity,
       unitCost: i.unitCost,
     }));
@@ -176,7 +194,7 @@ export function CreatePurchaseModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <ShoppingBag className="h-5 w-5 text-primary" />

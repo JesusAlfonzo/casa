@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   type Product,
   type Category,
@@ -14,6 +15,7 @@ import { ProductDetailSheet } from "@/components/products/product-detail-sheet";
 import {
   Package,
   Search,
+  Loader2,
   Plus,
   RefreshCw,
   MoreVertical,
@@ -62,6 +64,7 @@ import {
 export default function ProductsPage() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 400);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedBrand, setSelectedBrand] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
@@ -79,7 +82,7 @@ export default function ProductsPage() {
   const params = new URLSearchParams();
   params.set("page", String(page));
   params.set("limit", String(limit));
-  if (searchTerm.trim()) params.set("search", searchTerm.trim());
+  if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
   if (selectedCategory !== "ALL") params.set("categoryId", selectedCategory);
   if (selectedBrand !== "ALL") params.set("brandId", selectedBrand);
   if (statusFilter === "ACTIVE") params.set("isActive", "true");
@@ -91,7 +94,7 @@ export default function ProductsPage() {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ["products-list", page, searchTerm, selectedCategory, selectedBrand, statusFilter],
+    queryKey: ["products-list", page, debouncedSearch, selectedCategory, selectedBrand, statusFilter],
     queryFn: async () => {
       const res = await api.get<{
         data?: Product[];
@@ -188,11 +191,11 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8 pb-10">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Catálogo de Productos Físicos
             </h1>
@@ -205,7 +208,7 @@ export default function ProductsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -237,11 +240,15 @@ export default function ProductsPage() {
 
       {/* Filter and Table Card */}
       <Card className="border-border shadow-xs">
-        <CardHeader className="p-4 pb-2">
+        <CardHeader className="p-5 sm:p-6 pb-4 sm:pb-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             {/* Search Input */}
             <div className="relative flex-1 lg:max-w-md">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              {searchTerm !== debouncedSearch ? (
+                <Loader2 className="absolute left-3 top-3 h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              )}
               <Input
                 placeholder="Buscar por SKU, código de barras o nombre..."
                 value={searchTerm}
@@ -249,7 +256,7 @@ export default function ProductsPage() {
                   setSearchTerm(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 text-xs"
+                className="h-10 pl-10 text-xs sm:text-sm"
               />
             </div>
 
@@ -328,25 +335,22 @@ export default function ProductsPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 pt-2">
-          <div className="rounded-md border border-border overflow-hidden">
-            <Table>
+        <CardContent className="p-4 sm:p-6 pt-0">
+          <div className="rounded-lg border border-border bg-card shadow-xs overflow-hidden">
+            <Table className="w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[120px]">SKU / Código</TableHead>
-                  <TableHead className="w-[260px]">Producto</TableHead>
-                  <TableHead>Categoría / Marca</TableHead>
-                  <TableHead className="text-right">Costo Promedio</TableHead>
-                  <TableHead className="text-right">Precio Venta</TableHead>
-                  <TableHead className="text-center">Stock Disponible</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead className="h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Producto</TableHead>
+                  <TableHead className="text-right h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Precio</TableHead>
+                  <TableHead className="text-center h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stock</TableHead>
+                  <TableHead className="text-center h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</TableHead>
+                  <TableHead className="text-right h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[70px]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-48 text-center">
+                    <TableCell colSpan={5} className="h-44 text-center py-4 px-4 text-xs">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                         <span className="text-xs text-muted-foreground">
@@ -357,7 +361,7 @@ export default function ProductsPage() {
                   </TableRow>
                 ) : products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-48 text-center">
+                    <TableCell colSpan={5} className="h-44 text-center py-4 px-4 text-xs">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Package className="h-8 w-8 text-muted-foreground" />
                         <span className="text-sm font-semibold text-foreground">
@@ -397,70 +401,50 @@ export default function ProductsPage() {
                         className="cursor-pointer transition-colors hover:bg-muted/50"
                         onClick={() => handleOpenDetailSheet(product)}
                       >
-                        {/* SKU & Barcode */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-mono text-xs font-bold text-foreground">
-                              {product.sku}
-                            </span>
-                            {product.barcode && (
-                              <span className="font-mono text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                <Barcode className="h-3 w-3" />
-                                {product.barcode}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Product Name */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-xs text-foreground">
+                        {/* Producto & Identificación */}
+                        <TableCell className="py-3.5 px-4 text-xs">
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="font-semibold text-xs text-foreground line-clamp-1">
                               {product.name}
                             </span>
-                            {product.description && (
-                              <span className="line-clamp-1 text-[11px] text-muted-foreground">
-                                {product.description}
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <span className="font-mono font-medium text-foreground/80">
+                                {product.sku}
                               </span>
-                            )}
+                              {product.category?.name && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate max-w-[130px]">
+                                    {product.category.name}
+                                  </span>
+                                </>
+                              )}
+                              {product.brand?.name && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate max-w-[110px]">
+                                    {product.brand.name}
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
 
-                        {/* Category & Brand */}
-                        <TableCell>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {product.category?.name && (
-                              <Badge variant="outline" className="text-[10px]">
-                                {product.category.name}
-                              </Badge>
-                            )}
-                            {product.brand?.name && (
-                              <span className="text-[11px] text-muted-foreground">
-                                {product.brand.name}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Cost */}
-                        <TableCell className="text-right text-xs text-muted-foreground font-mono">
-                          ${cost.toFixed(2)}
-                        </TableCell>
-
-                        {/* Price & Margin */}
-                        <TableCell className="text-right">
+                        {/* Precio & Margen */}
+                        <TableCell className="py-3.5 px-4 text-right">
                           <div className="flex flex-col items-end">
                             <span className="font-bold text-xs text-foreground font-mono">
                               ${price.toFixed(2)}
                             </span>
                             <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                              +{margin}% margen
+                              +{margin}% ({cost > 0 ? `$${cost.toFixed(2)} cto.` : "sin costo"})
                             </span>
                           </div>
                         </TableCell>
 
                         {/* Stock Disponible */}
-                        <TableCell className="text-center">
+                        <TableCell className="py-3.5 px-4 text-center">
                           {isOutOfStock ? (
                             <Badge variant="destructive" className="text-[10px] font-bold">
                               Agotado (0)
@@ -484,7 +468,7 @@ export default function ProductsPage() {
                         </TableCell>
 
                         {/* Estado */}
-                        <TableCell>
+                        <TableCell className="py-3.5 px-4 text-center">
                           {product.isActive ? (
                             <Badge
                               variant="outline"
@@ -504,7 +488,7 @@ export default function ProductsPage() {
 
                         {/* Acciones */}
                         <TableCell
-                          className="text-right"
+                          className="py-3.5 px-4 text-right text-xs"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <DropdownMenu>
@@ -528,7 +512,7 @@ export default function ProductsPage() {
                                 className="text-xs gap-2"
                               >
                                 <Eye className="h-4 w-4" />
-                                Ver Existencias Almacén
+                                Ver Detalle Completo
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleOpenEditModal(product)}
@@ -566,11 +550,11 @@ export default function ProductsPage() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-border px-2 py-3 text-xs text-muted-foreground mt-2">
+          <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-xs text-muted-foreground mt-3">
             <span>
               Total: <strong>{total}</strong> productos registrados
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span>
                 Página {page} de {totalPages || 1}
               </span>
@@ -621,7 +605,7 @@ export default function ProductsPage() {
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
