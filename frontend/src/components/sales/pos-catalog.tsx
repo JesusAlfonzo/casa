@@ -1,7 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
-import { type ProductCatalogItem, type ServiceCatalogItem, type CartItem } from "@/types/pos";
+import React, { useMemo, useState } from "react";
+import {
+  type ProductCatalogItem,
+  type ServiceCatalogItem,
+  type CartItem,
+} from "@/types/pos";
 import {
   Search,
   Package,
@@ -11,6 +15,7 @@ import {
   LayoutGrid,
   X,
   Loader2,
+  Tag,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,8 +44,20 @@ export function PosCatalog({
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [tab, setTab] = useState<"ALL" | "PRODUCTS" | "SERVICES">("ALL");
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
-  // Handle direct barcode scanner enter
+  // Extraer categorías únicas de los productos
+  const categories = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const prod of products) {
+      const catName = prod.category?.name?.trim() || "General";
+      map.set(catName, (map.get(catName) || 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
+
   const handleBarcodeSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchTerm.trim()) {
       const match = products.find(
@@ -56,10 +73,11 @@ export function PosCatalog({
   };
 
   const handleAddProduct = (prod: ProductCatalogItem) => {
-    const totalStock = prod.inventories?.reduce(
-      (acc, inv) => acc + Number(inv.currentQuantity || 0),
-      0
-    ) ?? 0;
+    const totalStock =
+      prod.inventories?.reduce(
+        (acc, inv) => acc + Number(inv.currentQuantity || 0),
+        0
+      ) ?? 0;
 
     const price = Number(prod.baseSalePrice || 0);
 
@@ -97,21 +115,27 @@ export function PosCatalog({
     });
   };
 
-  // Filter items using debounced term
   const term = debouncedSearchTerm.toLowerCase().trim();
 
   const filteredProducts = products.filter((p) => {
     if (tab === "SERVICES") return false;
+    const catName = p.category?.name?.trim() || "General";
+    if (selectedCategory !== "ALL" && catName !== selectedCategory) {
+      return false;
+    }
     if (!term) return true;
     return (
       p.name.toLowerCase().includes(term) ||
       p.sku.toLowerCase().includes(term) ||
+      catName.toLowerCase().includes(term) ||
       (p.barcode && p.barcode.toLowerCase().includes(term))
     );
   });
 
   const filteredServices = services.filter((s) => {
     if (tab === "PRODUCTS") return false;
+    // Si hay una categoría de producto seleccionada, mostramos solo productos de esa categoría
+    if (selectedCategory !== "ALL") return false;
     if (!term) return true;
     return (
       s.name.toLowerCase().includes(term) ||
@@ -123,16 +147,16 @@ export function PosCatalog({
 
   return (
     <div className="flex flex-col h-full space-y-3.5">
-      {/* Search and Filters Header */}
-      <div className="space-y-2.5">
+      {/* Buscador y filtros */}
+      <div className="space-y-3 shrink-0">
         <div className="relative">
           <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Escanear código de barra (Enter) o buscar por producto / SKU..."
+            placeholder="Buscar producto, servicio o escanear código..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={handleBarcodeSubmit}
-            className="pl-10 pr-10 h-10 text-sm bg-card rounded-xl border-border/80 shadow-2xs focus-visible:ring-1"
+            className="pl-10 pr-10 h-10 text-sm bg-card rounded-xl border-border shadow-2xs"
           />
           {searchTerm && (
             <button
@@ -146,133 +170,180 @@ export function PosCatalog({
           )}
         </div>
 
-        {/* Tab Filters */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+        {/* Filtro principal: Todos / Productos / Servicios */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
           <Button
             type="button"
             variant={tab === "ALL" ? "default" : "outline"}
-            size="sm"
             onClick={() => setTab("ALL")}
-            className="rounded-xl px-3 h-8 gap-1.5 shadow-2xs text-xs font-semibold"
+            className="rounded-xl px-3.5 h-9 gap-1.5 text-sm font-medium shrink-0"
           >
-            <LayoutGrid className="h-3.5 w-3.5" />
+            <LayoutGrid className="h-4 w-4" />
             <span>Todos ({products.length + services.length})</span>
           </Button>
           <Button
             type="button"
             variant={tab === "PRODUCTS" ? "default" : "outline"}
-            size="sm"
             onClick={() => setTab("PRODUCTS")}
-            className="rounded-xl px-3 h-8 gap-1.5 shadow-2xs text-xs font-semibold"
+            className="rounded-xl px-3.5 h-9 gap-1.5 text-sm font-medium shrink-0"
           >
-            <Package className="h-3.5 w-3.5" />
-            <span>Físicos ({products.length})</span>
+            <Package className="h-4 w-4" />
+            <span>Productos ({products.length})</span>
           </Button>
           <Button
             type="button"
             variant={tab === "SERVICES" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTab("SERVICES")}
-            className="rounded-xl px-3 h-8 gap-1.5 shadow-2xs text-xs font-semibold"
+            onClick={() => {
+              setTab("SERVICES");
+              setSelectedCategory("ALL");
+            }}
+            className="rounded-xl px-3.5 h-9 gap-1.5 text-sm font-medium shrink-0"
           >
-            <Tv className="h-3.5 w-3.5" />
-            <span>Streaming & Servicios ({services.length})</span>
+            <Tv className="h-4 w-4" />
+            <span>Streaming y servicios ({services.length})</span>
           </Button>
         </div>
+
+        {/* Filtro por categoría de producto */}
+        {tab !== "SERVICES" && categories.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground mr-1 shrink-0">
+              <Tag className="h-3.5 w-3.5" />
+              <span>Categoría:</span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCategory("ALL")}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium transition-colors shrink-0 border",
+                selectedCategory === "ALL"
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/60"
+              )}
+            >
+              Todas
+            </button>
+
+            {categories.map((cat) => {
+              const isSelected = selectedCategory === cat.name;
+              return (
+                <button
+                  key={cat.name}
+                  type="button"
+                  onClick={() =>
+                    setSelectedCategory(isSelected ? "ALL" : cat.name)
+                  }
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium transition-colors shrink-0 border",
+                    isSelected
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/60"
+                  )}
+                >
+                  {cat.name} ({cat.count})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Catalog Grid */}
-      <div className="flex-1 overflow-y-auto pr-1">
+      {/* Cuadrícula de productos y servicios (con padding para que nunca se corte en hover) */}
+      <div className="flex-1 overflow-y-auto p-1.5 -m-1.5">
         {isLoading ? (
           <div className="flex h-64 flex-col items-center justify-center text-sm text-muted-foreground gap-2">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span>Cargando catálogo para venta...</span>
+            <span>Cargando catálogo...</span>
           </div>
         ) : totalFilteredCount === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-14 text-center">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-14 text-center bg-card">
             <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-base font-semibold text-foreground">
               No se encontraron coincidencias
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5 max-w-xs">
-              Prueba buscando por SKU, código o limpia el filtro de búsqueda.
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+              Prueba buscando otro nombre o limpia los filtros activos.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-            {/* Products */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 pb-4">
+            {/* Productos físicos */}
             {filteredProducts.map((prod) => {
               const inCart = cart.find((it) => it.productId === prod.id);
               const price = Number(prod.baseSalePrice || 0);
               const priceBs = (price * exchangeRate).toFixed(2);
-              const stock = prod.inventories?.reduce(
-                (acc, inv) => acc + Number(inv.currentQuantity || 0),
-                0
-              ) ?? 0;
+              const stock =
+                prod.inventories?.reduce(
+                  (acc, inv) => acc + Number(inv.currentQuantity || 0),
+                  0
+                ) ?? 0;
 
               return (
                 <Card
                   key={prod.id}
                   onClick={() => handleAddProduct(prod)}
                   className={cn(
-                    "group cursor-pointer border-border/80 bg-card shadow-xs hover:border-primary/50 hover:shadow-md transition-all rounded-xl overflow-hidden flex flex-col justify-between select-none",
-                    inCart ? "ring-2 ring-primary/50 bg-primary/5" : ""
+                    "group cursor-pointer border bg-card shadow-2xs hover:border-primary/60 hover:shadow-sm transition-all rounded-xl flex flex-col justify-between select-none py-0 gap-0",
+                    inCart
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border"
                   )}
                 >
-                  <CardContent className="p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      {/* Badges Row */}
-                      <div className="flex items-center justify-between gap-1">
-                        <Badge variant="outline" className="text-[10px] font-medium truncate max-w-[120px] bg-muted/40">
+                  <CardContent className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs font-normal truncate max-w-[140px]"
+                        >
                           {prod.category?.name || "General"}
                         </Badge>
                         {inCart ? (
-                          <span className="flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-2xs">
+                          <span className="inline-flex h-6 min-w-6 px-2 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">
                             {inCart.quantity} en carrito
                           </span>
                         ) : (
-                          <div className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors">
-                            <Plus className="h-3.5 w-3.5" />
+                          <div className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors shrink-0">
+                            <Plus className="h-4 w-4" />
                           </div>
                         )}
                       </div>
 
-                      {/* Title & SKU */}
                       <div>
-                        <h4 className="font-semibold text-xs sm:text-sm text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                        <h4 className="font-semibold text-sm text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
                           {prod.name}
                         </h4>
-                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                          SKU: {prod.sku}
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
+                          {prod.sku}
                         </p>
                       </div>
                     </div>
 
-                    {/* Price & Stock Footer */}
-                    <div className="pt-2 border-t border-border/60 flex items-end justify-between gap-2 mt-auto">
+                    <div className="pt-3 border-t border-border/60 flex items-end justify-between gap-2 mt-auto">
                       <div>
-                        <div className="text-sm sm:text-base font-extrabold text-foreground font-mono">
+                        <div className="text-base font-bold text-foreground font-mono leading-tight">
                           ${price.toFixed(2)}
                         </div>
                         {exchangeRate > 1 && (
-                          <div className="text-[10px] font-mono text-muted-foreground">
+                          <div className="text-xs font-mono text-muted-foreground mt-0.5">
                             Bs. {priceBs}
                           </div>
                         )}
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         {stock <= 0 ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-destructive/10 text-destructive border border-destructive/20">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-destructive/10 text-destructive">
                             Agotado
                           </span>
                         ) : stock <= 5 ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                            {stock} restantes
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                            Quedan {stock}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            {stock} disponibles
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                            {stock} disp.
                           </span>
                         )}
                       </div>
@@ -282,7 +353,7 @@ export function PosCatalog({
               );
             })}
 
-            {/* Services / Streaming */}
+            {/* Servicios / Streaming */}
             {filteredServices.map((srv) => {
               const inCart = cart.find((it) => it.serviceId === srv.id);
               const price = Number(srv.basePrice || 0);
@@ -293,56 +364,58 @@ export function PosCatalog({
                   key={srv.id}
                   onClick={() => handleAddService(srv)}
                   className={cn(
-                    "group cursor-pointer border-border/80 bg-card shadow-xs hover:border-primary/50 hover:shadow-md transition-all rounded-xl overflow-hidden flex flex-col justify-between select-none",
-                    inCart ? "ring-2 ring-primary/50 bg-primary/5" : ""
+                    "group cursor-pointer border bg-card shadow-2xs hover:border-primary/60 hover:shadow-sm transition-all rounded-xl flex flex-col justify-between select-none py-0 gap-0",
+                    inCart
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border"
                   )}
                 >
-                  <CardContent className="p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      {/* Badges Row */}
-                      <div className="flex items-center justify-between gap-1">
-                        <Badge variant="secondary" className="text-[10px] font-medium gap-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                          <Tv className="h-2.5 w-2.5" />
+                  <CardContent className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs font-normal gap-1 bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                        >
+                          <Tv className="h-3 w-3" />
                           <span>Streaming</span>
                         </Badge>
                         {inCart ? (
-                          <span className="flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-2xs">
+                          <span className="inline-flex h-6 min-w-6 px-2 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">
                             {inCart.quantity} en carrito
                           </span>
                         ) : (
-                          <div className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors">
-                            <Plus className="h-3.5 w-3.5" />
+                          <div className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors shrink-0">
+                            <Plus className="h-4 w-4" />
                           </div>
                         )}
                       </div>
 
-                      {/* Title & Duration */}
                       <div>
-                        <h4 className="font-semibold text-xs sm:text-sm text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                        <h4 className="font-semibold text-sm text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">
                           {srv.name}
                         </h4>
-                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                          {srv.code} • {srv.defaultDurationDays || 30} días
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {srv.defaultDurationDays || 30} días
                         </p>
                       </div>
                     </div>
 
-                    {/* Price & Badge Footer */}
-                    <div className="pt-2 border-t border-border/60 flex items-end justify-between gap-2 mt-auto">
+                    <div className="pt-3 border-t border-border/60 flex items-end justify-between gap-2 mt-auto">
                       <div>
-                        <div className="text-sm sm:text-base font-extrabold text-foreground font-mono">
+                        <div className="text-base font-bold text-foreground font-mono leading-tight">
                           ${price.toFixed(2)}
                         </div>
                         {exchangeRate > 1 && (
-                          <div className="text-[10px] font-mono text-muted-foreground">
+                          <div className="text-xs font-mono text-muted-foreground mt-0.5">
                             Bs. {priceBs}
                           </div>
                         )}
                       </div>
 
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-muted/30">
-                        Servicio Digital
-                      </Badge>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        Servicio
+                      </span>
                     </div>
                   </CardContent>
                 </Card>

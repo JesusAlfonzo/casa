@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   type CartItem,
   type Customer,
@@ -22,8 +22,12 @@ import {
   Coins,
   CheckCircle2,
   AlertTriangle,
-  Sparkles,
   Clock,
+  Loader2,
+  Banknote,
+  Wallet,
+  Euro,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +36,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -53,7 +56,15 @@ interface PosCheckoutDialogProps {
   onSaleCompleted: (sale: SaleTransaction) => void;
 }
 
-type PresetType = "cash_usd" | "pm_ves" | "zelle_usd" | "credit";
+type PresetType =
+  | "cash_usd"
+  | "cash_ves"
+  | "pm_ves"
+  | "transfer_ves"
+  | "zinli_usd"
+  | "binance_usdt"
+  | "cash_eur"
+  | "credit";
 
 export function PosCheckoutDialog({
   open,
@@ -71,7 +82,6 @@ export function PosCheckoutDialog({
 }: PosCheckoutDialogProps) {
   const queryClient = useQueryClient();
 
-  // Find base currency with robust fallbacks
   const baseCurrency =
     baseCurrencyProp ||
     currencies.find((c) => c.isBase) ||
@@ -79,66 +89,18 @@ export function PosCheckoutDialog({
     currencies[0] ||
     null;
 
-  const subtotal = cart.reduce((acc, it) => acc + it.subtotal, 0);
-  const totalUSD = Math.max(0, subtotal - globalDiscount);
-  const totalBs = Number((totalUSD * exchangeRate).toFixed(2));
-
-  // Payments array & Active Preset
+  const nextIdRef = useRef(1);
+  const [appliedRate, setAppliedRate] = useState<number>(
+    exchangeRate > 0 ? exchangeRate : 1
+  );
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState<PresetType | null>("cash_usd");
+  const [selectedPreset, setSelectedPreset] = useState<PresetType | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper to find cash account and method
-  const findCashConfig = () => {
-    const cashMethod =
-      paymentMethods.find((m) => m.name.toLowerCase().includes("efectivo") || m.name.toLowerCase().includes("cash")) ||
-      paymentMethods[0];
-    const cashAccount =
-      financialAccounts.find((a) => (a.currency?.code === "USD" || !a.currency) && a.name.toLowerCase().includes("caja")) ||
-      financialAccounts.find((a) => a.currency?.code === "USD") ||
-      financialAccounts[0];
-    return { cashMethod, cashAccount };
-  };
-
-  // Helper to find pago movil config
-  const findPagoMovilConfig = () => {
-    const pmMethod =
-      paymentMethods.find(
-        (m) =>
-          m.name.toLowerCase().includes("móvil") ||
-          m.name.toLowerCase().includes("movil") ||
-          m.name.toLowerCase().includes("pago movil")
-      ) || paymentMethods[0];
-    const bankAccount =
-      financialAccounts.find(
-        (a) =>
-          a.currency?.code === "VES" ||
-          a.name.toLowerCase().includes("banesco") ||
-          a.name.toLowerCase().includes("mercantil") ||
-          a.name.toLowerCase().includes("banco")
-      ) ||
-      financialAccounts.find((a) => a.currency?.code === "VES") ||
-      financialAccounts[0];
-    return { pmMethod, bankAccount };
-  };
-
-  // Helper to find zelle config
-  const findZelleConfig = () => {
-    const zelleMethod =
-      paymentMethods.find((m) => m.name.toLowerCase().includes("zelle")) ||
-      paymentMethods.find((m) => m.name.toLowerCase().includes("transferencia")) ||
-      paymentMethods[0];
-    const zelleAccount =
-      financialAccounts.find((a) => a.name.toLowerCase().includes("zelle")) ||
-      financialAccounts.find((a) => a.currency?.code === "USD") ||
-      financialAccounts[0];
-    return { zelleMethod, zelleAccount };
-  };
-
-  // Synchronize initial payment state when modal opens
   const [prevOpen, setPrevOpen] = useState(false);
   if (open && !prevOpen) {
     setPrevOpen(true);
+    setAppliedRate(exchangeRate > 0 ? exchangeRate : 1);
     setSelectedPreset(null);
     setPayments([]);
     setError(null);
@@ -146,87 +108,142 @@ export function PosCheckoutDialog({
     setPrevOpen(false);
   }
 
-  // Total paid calculation
+  const effectiveRate = appliedRate > 0 ? appliedRate : 1;
+  const subtotal = cart.reduce((acc, it) => acc + it.subtotal, 0);
+  const totalUSD = Math.max(0, subtotal - globalDiscount);
+  const totalBs = Number((totalUSD * effectiveRate).toFixed(2));
+
+  // Helpers para ubicar cuentas y métodos reales
+  const findConfig = (preset: Exclude<PresetType, "credit">) => {
+    const byMethod = (...keywords: string[]) =>
+      paymentMethods.find((m) =>
+        keywords.some((k) => m.name.toLowerCase().includes(k))
+      ) || paymentMethods[0];
+
+    const byAccount = (currencyCodes: string[], ...keywords: string[]) =>
+      financialAccounts.find(
+        (a) =>
+          (currencyCodes.length === 0 ||
+            currencyCodes.includes(a.currency?.code || "")) &&
+          keywords.some((k) => a.name.toLowerCase().includes(k))
+      ) ||
+      financialAccounts.find((a) =>
+        currencyCodes.includes(a.currency?.code || "")
+      ) ||
+      financialAccounts[0];
+
+    switch (preset) {
+      case "cash_usd":
+        return {
+          method: byMethod("efectivo usd", "efectivo $", "efectivo"),
+          account: byAccount(["USD"], "caja", "efectivo"),
+          currencyCode: "USD",
+          amount: totalUSD,
+        };
+      case "cash_ves":
+        return {
+          method: byMethod("efectivo bs", "efectivo ves", "efectivo"),
+          account: byAccount(["VES"], "caja", "efectivo"),
+          currencyCode: "VES",
+          amount: totalBs,
+        };
+      case "pm_ves":
+        return {
+          method: byMethod("pago móvil", "pago movil", "móvil", "movil"),
+          account: byAccount(["VES"], "banesco", "banco", "corriente"),
+          currencyCode: "VES",
+          amount: totalBs,
+        };
+      case "transfer_ves":
+        return {
+          method: byMethod("transferencia"),
+          account: byAccount(["VES"], "banesco", "banco", "corriente"),
+          currencyCode: "VES",
+          amount: totalBs,
+        };
+      case "zinli_usd":
+        return {
+          method: byMethod("zinli"),
+          account: byAccount(["USD"], "zinli"),
+          currencyCode: "USD",
+          amount: totalUSD,
+        };
+      case "binance_usdt":
+        return {
+          method: byMethod("binance", "usdt"),
+          account: byAccount(["USDT", "USD"], "binance"),
+          currencyCode: "USDT",
+          amount: totalUSD,
+        };
+      case "cash_eur":
+        return {
+          method: byMethod("efectivo eur", "euro", "efectivo"),
+          account: byAccount(["EUR"], "caja", "euro", "eur"),
+          currencyCode: "EUR",
+          amount: totalUSD,
+        };
+    }
+  };
+
+  const applyPreset = (preset: PresetType) => {
+    setError(null);
+    setSelectedPreset(preset);
+
+    if (preset === "credit") {
+      setPayments([]);
+      return;
+    }
+
+    const cfg = findConfig(preset);
+    if (!cfg.account || !cfg.method) return;
+
+    setPayments([
+      {
+        tempId: `pay-${nextIdRef.current++}`,
+        financialAccountId: cfg.account.id,
+        paymentMethodId: cfg.method.id,
+        amount: cfg.amount,
+        currencyId: cfg.account.currencyId || baseCurrency?.id || "",
+        reference: "",
+        accountName: cfg.account.name,
+        methodName: cfg.method.name,
+        currencyCode: cfg.account.currency?.code || cfg.currencyCode,
+      },
+    ]);
+  };
+
+  // Si cambia la tasa a mano y hay un preset en bolívares activo, actualizar el monto en Bs. automáticamente
+  const handleRateChange = (newRate: number) => {
+    setAppliedRate(newRate);
+    if (
+      newRate > 0 &&
+      (selectedPreset === "cash_ves" ||
+        selectedPreset === "pm_ves" ||
+        selectedPreset === "transfer_ves")
+    ) {
+      const updatedBs = Number((totalUSD * newRate).toFixed(2));
+      setPayments((prev) =>
+        prev.map((p) => ({
+          ...p,
+          amount: updatedBs,
+        }))
+      );
+    }
+  };
+
   const totalPaidUSD = payments.reduce((acc, p) => {
     const accObj = financialAccounts.find((a) => a.id === p.financialAccountId);
-    const isBs = accObj?.currency?.code === "VES" || p.currencyCode === "VES";
-    const amountInUSD = isBs ? (Number(p.amount || 0) / (exchangeRate || 1)) : Number(p.amount || 0);
+    const code = accObj?.currency?.code || p.currencyCode || "USD";
+    const isBs = code === "VES";
+    const amountInUSD = isBs
+      ? Number(p.amount || 0) / effectiveRate
+      : Number(p.amount || 0);
     return acc + amountInUSD;
   }, 0);
 
   const pendingBalanceUSD = Math.max(0, totalUSD - totalPaidUSD);
   const changeUSD = Math.max(0, totalPaidUSD - totalUSD);
-  const changeBs = (changeUSD * (exchangeRate || 1)).toFixed(2);
-
-  // Quick Preset actions
-  const setExactCashUSD = () => {
-    setError(null);
-    setSelectedPreset("cash_usd");
-    const { cashMethod, cashAccount } = findCashConfig();
-    if (!cashAccount || !cashMethod) return;
-
-    setPayments([
-      {
-        tempId: `pay-${Date.now()}`,
-        financialAccountId: cashAccount.id,
-        paymentMethodId: cashMethod.id,
-        amount: totalUSD,
-        currencyId: cashAccount.currencyId || baseCurrency?.id || "",
-        reference: "",
-        accountName: cashAccount.name,
-        methodName: cashMethod.name,
-        currencyCode: "USD",
-      },
-    ]);
-  };
-
-  const setExactPagoMovilVES = () => {
-    setError(null);
-    setSelectedPreset("pm_ves");
-    const { pmMethod, bankAccount } = findPagoMovilConfig();
-    if (!bankAccount || !pmMethod) return;
-
-    setPayments([
-      {
-        tempId: `pay-${Date.now()}`,
-        financialAccountId: bankAccount.id,
-        paymentMethodId: pmMethod.id,
-        amount: totalBs,
-        currencyId: bankAccount.currencyId || baseCurrency?.id || "",
-        reference: "",
-        accountName: bankAccount.name,
-        methodName: pmMethod.name,
-        currencyCode: "VES",
-      },
-    ]);
-  };
-
-  const setExactZelleUSD = () => {
-    setError(null);
-    setSelectedPreset("zelle_usd");
-    const { zelleMethod, zelleAccount } = findZelleConfig();
-    if (!zelleAccount || !zelleMethod) return;
-
-    setPayments([
-      {
-        tempId: `pay-${Date.now()}`,
-        financialAccountId: zelleAccount.id,
-        paymentMethodId: zelleMethod.id,
-        amount: totalUSD,
-        currencyId: zelleAccount.currencyId || baseCurrency?.id || "",
-        reference: "",
-        accountName: zelleAccount.name,
-        methodName: zelleMethod.name,
-        currencyCode: "USD",
-      },
-    ]);
-  };
-
-  const setCreditSale = () => {
-    setError(null);
-    setSelectedPreset("credit");
-    setPayments([]);
-  };
+  const changeBs = (changeUSD * effectiveRate).toFixed(2);
 
   const handleAddPaymentRow = () => {
     setSelectedPreset(null);
@@ -234,13 +251,18 @@ export function PosCheckoutDialog({
     const defaultMethod = paymentMethods[0];
     if (!defaultAccount || !defaultMethod) return;
 
+    const isVES = defaultAccount.currency?.code === "VES";
+    const suggestedAmount = isVES
+      ? Number((pendingBalanceUSD * effectiveRate).toFixed(2))
+      : Number(pendingBalanceUSD.toFixed(2));
+
     setPayments((prev) => [
       ...prev,
       {
-        tempId: `pay-${Date.now()}-${Math.random()}`,
+        tempId: `pay-${nextIdRef.current++}`,
         financialAccountId: defaultAccount.id,
         paymentMethodId: defaultMethod.id,
-        amount: Number(pendingBalanceUSD.toFixed(2)),
+        amount: suggestedAmount,
         currencyId: defaultAccount.currencyId || baseCurrency?.id || "",
         reference: "",
         accountName: defaultAccount.name,
@@ -255,14 +277,16 @@ export function PosCheckoutDialog({
     setPayments((prev) => prev.filter((p) => p.tempId !== tempId));
   };
 
-  const handleUpdatePayment = (tempId: string, updates: Partial<PaymentEntry>) => {
+  const handleUpdatePayment = (
+    tempId: string,
+    updates: Partial<PaymentEntry>
+  ) => {
     setSelectedPreset(null);
     setPayments((prev) =>
       prev.map((p) => (p.tempId === tempId ? { ...p, ...updates } : p))
     );
   };
 
-  // Submit sale mutation
   const submitSaleMutation = useMutation({
     mutationFn: async () => {
       setError(null);
@@ -270,16 +294,16 @@ export function PosCheckoutDialog({
       const effectiveCurrencyId = baseCurrency?.id || currencies[0]?.id;
       if (!effectiveCurrencyId) {
         throw new Error(
-          "No se ha configurado la moneda base del sistema. Por favor registra o activa al menos una moneda en el módulo de Finanzas."
+          "No hay ninguna moneda configurada. Agrega al menos una moneda en Finanzas."
         );
       }
 
       if (cart.length === 0) {
-        throw new Error("El carrito no tiene artículos para procesar.");
+        throw new Error("El carrito está vacío.");
       }
 
-      // Determine status
-      let status: "COMPLETED" | "PARTIALLY_PAID" | "PENDING_PAYMENT" = "COMPLETED";
+      let status: "COMPLETED" | "PARTIALLY_PAID" | "PENDING_PAYMENT" =
+        "COMPLETED";
       if (payments.length === 0 || totalPaidUSD === 0) {
         status = "PENDING_PAYMENT";
       } else if (pendingBalanceUSD > 0.01) {
@@ -288,7 +312,7 @@ export function PosCheckoutDialog({
 
       const payload = {
         currencyId: effectiveCurrencyId,
-        exchangeRateValue: exchangeRate,
+        exchangeRateValue: effectiveRate,
         customerId: customer?.id || null,
         discountAmount: globalDiscount,
         notes: notes || undefined,
@@ -304,7 +328,9 @@ export function PosCheckoutDialog({
           taxPercentage: item.taxPercentage,
         })),
         payments: payments.map((p) => {
-          const acc = financialAccounts.find((a) => a.id === p.financialAccountId);
+          const acc = financialAccounts.find(
+            (a) => a.id === p.financialAccountId
+          );
           return {
             financialAccountId: p.financialAccountId,
             paymentMethodId: p.paymentMethodId,
@@ -316,7 +342,9 @@ export function PosCheckoutDialog({
         }),
       };
 
-      const res = await api.post<{ success?: boolean; data?: SaleTransaction } | SaleTransaction>("/sales", payload);
+      const res = await api.post<
+        { success?: boolean; data?: SaleTransaction } | SaleTransaction
+      >("/sales", payload);
       const createdSale =
         res && typeof res === "object" && "data" in res && res.data
           ? (res.data as SaleTransaction)
@@ -325,259 +353,331 @@ export function PosCheckoutDialog({
     },
     onSuccess: (createdSale) => {
       queryClient.invalidateQueries({ queryKey: ["sales-list"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-stats"] });
       queryClient.invalidateQueries({ queryKey: ["sales-summary"] });
       queryClient.invalidateQueries({ queryKey: ["products-summary"] });
       queryClient.invalidateQueries({ queryKey: ["products-list"] });
+      onOpenChange(false);
       onSaleCompleted(createdSale);
     },
     onError: (err) => {
-      setError(err instanceof Error ? err.message : "Error al registrar la venta.");
+      setError(
+        err instanceof Error ? err.message : "Error al registrar la venta."
+      );
     },
   });
 
+  const presetButtons: Array<{
+    id: PresetType;
+    label: string;
+    sublabel: string;
+    icon: React.ComponentType<{ className?: string }>;
+    accentClass: string;
+    activeClass: string;
+  }> = [
+    {
+      id: "cash_usd",
+      label: "Efectivo ($)",
+      sublabel: `$${totalUSD.toFixed(2)}`,
+      icon: DollarSign,
+      accentClass: "text-emerald-600 dark:text-emerald-400",
+      activeClass: "border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/25",
+    },
+    {
+      id: "cash_ves",
+      label: "Efectivo (Bs.)",
+      sublabel: `Bs. ${totalBs.toFixed(2)}`,
+      icon: Banknote,
+      accentClass: "text-teal-600 dark:text-teal-400",
+      activeClass: "border-teal-500 bg-teal-500/10 ring-2 ring-teal-500/25",
+    },
+    {
+      id: "pm_ves",
+      label: "Pago Móvil",
+      sublabel: `Bs. ${totalBs.toFixed(2)}`,
+      icon: Smartphone,
+      accentClass: "text-blue-600 dark:text-blue-400",
+      activeClass: "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/25",
+    },
+    {
+      id: "transfer_ves",
+      label: "Transferencia",
+      sublabel: `Bs. ${totalBs.toFixed(2)}`,
+      icon: Landmark,
+      accentClass: "text-indigo-600 dark:text-indigo-400",
+      activeClass: "border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/25",
+    },
+    {
+      id: "zinli_usd",
+      label: "Zinli",
+      sublabel: `$${totalUSD.toFixed(2)}`,
+      icon: Wallet,
+      accentClass: "text-purple-600 dark:text-purple-400",
+      activeClass: "border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/25",
+    },
+    {
+      id: "binance_usdt",
+      label: "Binance",
+      sublabel: `$${totalUSD.toFixed(2)} USDT`,
+      icon: ArrowLeftRight,
+      accentClass: "text-yellow-600 dark:text-yellow-400",
+      activeClass: "border-yellow-500 bg-yellow-500/10 ring-2 ring-yellow-500/25",
+    },
+    {
+      id: "cash_eur",
+      label: "Efectivo (€)",
+      sublabel: `€${totalUSD.toFixed(2)}`,
+      icon: Euro,
+      accentClass: "text-sky-600 dark:text-sky-400",
+      activeClass: "border-sky-500 bg-sky-500/10 ring-2 ring-sky-500/25",
+    },
+    {
+      id: "credit",
+      label: "Fiado",
+      sublabel: "Paga después",
+      icon: Coins,
+      accentClass: "text-amber-600 dark:text-amber-400",
+      activeClass: "border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/25",
+    },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl md:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl bg-card border-border shadow-xl">
-        {/* Header (Pinned) */}
-        <DialogHeader className="shrink-0 p-4 sm:p-5 border-b border-border bg-card">
-          <div className="flex items-center gap-3 text-primary">
-            <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+      <DialogContent className="sm:max-w-3xl max-h-[90dvh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl bg-card border-border shadow-xl">
+        {/* Encabezado fijo */}
+        <DialogHeader className="shrink-0 px-6 py-5 border-b border-border bg-card">
+          <div className="flex items-center gap-3.5 pr-10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
               <CreditCard className="h-5 w-5" />
             </div>
-            <div>
-              <DialogTitle className="text-base sm:text-lg font-bold text-foreground">
-                Procesar Cobro & Registro de Venta
+            <div className="min-w-0">
+              <DialogTitle className="text-xl font-semibold text-foreground">
+                Cobrar venta
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Selecciona un atajo de cobro rápido con un solo clic o combina múltiples cuentas y métodos (pago dividido).
+              <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+                Elige cómo paga el cliente o divide el pago en varias cuentas.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Scrollable Content Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4">
+        {/* Cuerpo con un solo scroll */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
           {error && (
-            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-xs text-destructive flex items-center gap-2.5">
+            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive flex items-center gap-2.5">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span className="font-medium">{error}</span>
             </div>
           )}
 
-          {/* Quick Presets Section */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                <span>Atajos de Pago Rápido (1 Clic):</span>
-              </Label>
-              {selectedPreset && (
-                <span className="text-[11px] font-mono font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                  Atajo activo
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <button
-                type="button"
-                onClick={setExactCashUSD}
-                className={cn(
-                  "p-3 rounded-xl border text-left transition-all flex flex-col justify-between h-[72px] select-none cursor-pointer",
-                  selectedPreset === "cash_usd"
-                    ? "border-emerald-500 bg-emerald-500/10 text-foreground ring-2 ring-emerald-500/30 shadow-xs"
-                    : "border-border/80 bg-card hover:bg-accent/40 text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    <DollarSign className="h-4 w-4" />
-                    <span>Efectivo USD</span>
-                  </div>
-                  {selectedPreset === "cash_usd" && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                  )}
-                </div>
-                <div className="font-mono text-sm font-bold text-foreground">
-                  ${totalUSD.toFixed(2)}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={setExactPagoMovilVES}
-                className={cn(
-                  "p-3 rounded-xl border text-left transition-all flex flex-col justify-between h-[72px] select-none cursor-pointer",
-                  selectedPreset === "pm_ves"
-                    ? "border-blue-500 bg-blue-500/10 text-foreground ring-2 ring-blue-500/30 shadow-xs"
-                    : "border-border/80 bg-card hover:bg-accent/40 text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
-                    <Smartphone className="h-4 w-4" />
-                    <span>Pago Móvil</span>
-                  </div>
-                  {selectedPreset === "pm_ves" && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                  )}
-                </div>
-                <div className="font-mono text-sm font-bold text-foreground truncate">
-                  Bs. {totalBs.toFixed(2)}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={setExactZelleUSD}
-                className={cn(
-                  "p-3 rounded-xl border text-left transition-all flex flex-col justify-between h-[72px] select-none cursor-pointer",
-                  selectedPreset === "zelle_usd"
-                    ? "border-purple-500 bg-purple-500/10 text-foreground ring-2 ring-purple-500/30 shadow-xs"
-                    : "border-border/80 bg-card hover:bg-accent/40 text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-600 dark:text-purple-400">
-                    <Landmark className="h-4 w-4" />
-                    <span>Zelle USD</span>
-                  </div>
-                  {selectedPreset === "zelle_usd" && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                  )}
-                </div>
-                <div className="font-mono text-sm font-bold text-foreground">
-                  ${totalUSD.toFixed(2)}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={setCreditSale}
-                className={cn(
-                  "p-3 rounded-xl border text-left transition-all flex flex-col justify-between h-[72px] select-none cursor-pointer",
-                  selectedPreset === "credit" || payments.length === 0
-                    ? "border-amber-500 bg-amber-500/10 text-foreground ring-2 ring-amber-500/30 shadow-xs"
-                    : "border-border/80 bg-card hover:bg-accent/40 text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
-                    <Coins className="h-4 w-4" />
-                    <span>A Crédito / Por Cobrar</span>
-                  </div>
-                  {(selectedPreset === "credit" || payments.length === 0) && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                  )}
-                </div>
-                <div className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
-                  Sin abono (Por Cobrar)
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Overview Box */}
-          <div className="rounded-xl border border-border bg-card p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          {/* Total a cobrar + Tasa editable a mano */}
+          <div className="rounded-xl border border-border bg-muted/30 p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Total Facturado (USD):
+              <span className="text-sm font-medium text-muted-foreground">
+                Total a cobrar
               </span>
-              <div className="text-2xl font-black font-mono text-foreground">
+              <div className="text-3xl font-bold font-mono text-foreground mt-0.5">
                 ${totalUSD.toFixed(2)}
               </div>
+              <div className="text-sm font-mono text-muted-foreground mt-0.5">
+                Bs. {totalBs.toFixed(2)}
+              </div>
             </div>
 
-            {exchangeRate > 1 && (
-              <div className="sm:text-right">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Equivalente Oficial (VES):
-                </span>
-                <div className="text-base sm:text-lg font-bold font-mono text-foreground">
-                  Bs. {totalBs.toFixed(2)}
-                </div>
-                <span className="text-[10px] text-muted-foreground font-mono">
-                  (Tasa BCV: {exchangeRate.toFixed(2)} Bs/$)
-                </span>
+            <div className="flex flex-col sm:items-end gap-1.5">
+              <Label
+                htmlFor="checkout-rate"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Tasa usada para esta venta (Bs. por $1)
+              </Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Bs.</span>
+                <Input
+                  id="checkout-rate"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={appliedRate || ""}
+                  onChange={(e) =>
+                    handleRateChange(Math.max(0.01, Number(e.target.value) || 0))
+                  }
+                  className="w-28 h-9 text-sm font-mono font-semibold bg-background text-right"
+                />
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Payments Desglose List */}
+          {/* Botones de pago rápido */}
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-foreground">
-                Líneas de Pago & Abonos ({payments.length}):
+            <Label className="text-sm font-semibold text-foreground">
+              ¿Cómo paga el cliente?
+            </Label>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {presetButtons.map((btn) => {
+                const Icon = btn.icon;
+                const isSelected =
+                  btn.id === "credit"
+                    ? selectedPreset === "credit" || payments.length === 0
+                    : selectedPreset === btn.id;
+
+                return (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    onClick={() => applyPreset(btn.id)}
+                    className={cn(
+                      "p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 min-h-[78px] select-none cursor-pointer",
+                      isSelected
+                        ? btn.activeClass
+                        : "border-border bg-card hover:bg-muted/50 text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-1 w-full">
+                      <div
+                        className={cn(
+                          "flex items-center gap-1.5 text-sm font-semibold",
+                          btn.accentClass
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{btn.label}</span>
+                      </div>
+                      {isSelected && (
+                        <CheckCircle2
+                          className={cn("h-4 w-4 shrink-0", btn.accentClass)}
+                        />
+                      )}
+                    </div>
+                    <div className="font-mono text-xs font-semibold text-foreground truncate">
+                      {btn.sublabel}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detalle de pagos */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <Label className="text-sm font-semibold text-foreground">
+                Detalle del pago ({payments.length})
               </Label>
               <Button
                 type="button"
-                variant="ghost"
-                size="xs"
+                variant="outline"
+                size="sm"
                 onClick={handleAddPaymentRow}
-                className="text-[11px] text-primary gap-1 h-7 hover:bg-primary/10 font-semibold"
+                className="h-9 px-3 text-sm gap-1.5 self-start sm:self-auto"
               >
-                <Plus className="h-3 w-3" />
-                <span>+ Agregar Otra Cuenta / Moneda</span>
+                <Plus className="h-4 w-4" />
+                <span>Combinar con otro pago</span>
               </Button>
             </div>
 
             {payments.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-4 text-xs text-amber-700 dark:text-amber-300">
-                <div className="font-bold flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-                  <span>Venta sin abono inicial (100% a Crédito)</span>
+              <div className="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-800 dark:text-amber-300 space-y-1">
+                <div className="font-semibold flex items-center gap-2">
+                  <Clock className="h-4 w-4 shrink-0 text-amber-500" />
+                  <span>Esta venta quedará pendiente por cobrar (fiado)</span>
                 </div>
-                <p className="text-[11px] mt-1 opacity-90">
-                  La orden se registrará con estatus <strong>PENDIENTE DE PAGO</strong> asociada a {customer ? `${customer.name} ${customer.lastName || ""}` : "Cliente Mostrador"}.
+                <p className="text-sm opacity-90">
+                  Se guardará a nombre de{" "}
+                  <strong>
+                    {customer
+                      ? `${customer.name} ${customer.lastName || ""}`.trim()
+                      : "Cliente general"}
+                  </strong>
+                  . Podrás registrar abonos después desde el historial.
                 </p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {payments.map((p, idx) => {
-                  const account = financialAccounts.find((a) => a.id === p.financialAccountId);
-                  const isVES = account?.currency?.code === "VES" || p.currencyCode === "VES";
+                  const account = financialAccounts.find(
+                    (a) => a.id === p.financialAccountId
+                  );
+                  const currencyCode =
+                    account?.currency?.code || p.currencyCode || "USD";
+                  const isVES = currencyCode === "VES";
+                  const isEUR = currencyCode === "EUR";
+                  const symbol = isVES ? "Bs." : isEUR ? "€" : "$";
+                  const equivalentText = isVES
+                    ? `Equivale a $${(Number(p.amount || 0) / effectiveRate).toFixed(2)} USD`
+                    : `Equivale a Bs. ${(Number(p.amount || 0) * effectiveRate).toFixed(2)}`;
 
                   return (
                     <div
                       key={p.tempId}
-                      className="rounded-xl border border-border bg-card p-3 space-y-2.5 text-xs shadow-2xs"
+                      className="rounded-xl border border-border bg-card p-4 space-y-3"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                          <span>Abono #{idx + 1}</span>
-                          <span className="font-mono text-[10px] text-muted-foreground">
-                            ({isVES ? "Bolívares VES" : "Dólares USD"})
+                        <span className="font-semibold text-foreground text-sm">
+                          Pago #{idx + 1}{" "}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            (
+                            {isVES
+                              ? "Bolívares"
+                              : isEUR
+                                ? "Euros"
+                                : currencyCode === "USDT"
+                                  ? "USDT"
+                                  : "Dólares"}
+                            )
                           </span>
                         </span>
                         {payments.length > 1 && (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleRemovePaymentRow(p.tempId)}
-                            className="text-muted-foreground hover:text-destructive p-1 rounded-md transition-colors"
-                            title="Eliminar este abono"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="Quitar este pago"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        {/* Financial Account */}
-                        <div>
-                          <Label className="text-[11px] font-medium text-muted-foreground mb-1 block">
-                            Cuenta Destino
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">
+                            Cuenta donde entra
                           </Label>
                           <select
                             value={p.financialAccountId}
                             onChange={(e) => {
-                              const found = financialAccounts.find((a) => a.id === e.target.value);
+                              const found = financialAccounts.find(
+                                (a) => a.id === e.target.value
+                              );
+                              const nextCode = found?.currency?.code || "USD";
+                              const wasVES = currencyCode === "VES";
+                              const nowVES = nextCode === "VES";
+                              let convertedAmount = p.amount;
+                              if (!wasVES && nowVES) {
+                                convertedAmount = Number(
+                                  (Number(p.amount || 0) * effectiveRate).toFixed(
+                                    2
+                                  )
+                                );
+                              } else if (wasVES && !nowVES) {
+                                convertedAmount = Number(
+                                  (Number(p.amount || 0) / effectiveRate).toFixed(
+                                    2
+                                  )
+                                );
+                              }
                               handleUpdatePayment(p.tempId, {
                                 financialAccountId: e.target.value,
                                 currencyId: found?.currencyId || p.currencyId,
-                                currencyCode: found?.currency?.code,
+                                currencyCode: nextCode,
+                                amount: convertedAmount,
                               });
                             }}
-                            className="w-full h-8 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
                           >
                             {financialAccounts.map((a) => (
                               <option key={a.id} value={a.id}>
@@ -587,15 +687,18 @@ export function PosCheckoutDialog({
                           </select>
                         </div>
 
-                        {/* Payment Method */}
-                        <div>
-                          <Label className="text-[11px] font-medium text-muted-foreground mb-1 block">
-                            Método de Pago
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">
+                            Forma de pago
                           </Label>
                           <select
                             value={p.paymentMethodId}
-                            onChange={(e) => handleUpdatePayment(p.tempId, { paymentMethodId: e.target.value })}
-                            className="w-full h-8 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                            onChange={(e) =>
+                              handleUpdatePayment(p.tempId, {
+                                paymentMethodId: e.target.value,
+                              })
+                            }
+                            className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
                           >
                             {paymentMethods.map((m) => (
                               <option key={m.id} value={m.id}>
@@ -605,10 +708,9 @@ export function PosCheckoutDialog({
                           </select>
                         </div>
 
-                        {/* Amount */}
-                        <div>
-                          <Label className="text-[11px] font-medium text-muted-foreground mb-1 block">
-                            Monto Recibido ({isVES ? "Bs" : "$"})
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">
+                            Monto recibido ({symbol})
                           </Label>
                           <Input
                             type="number"
@@ -620,20 +722,24 @@ export function PosCheckoutDialog({
                                 amount: Number(e.target.value) || 0,
                               })
                             }
-                            className="h-8 text-xs font-mono font-bold rounded-lg"
+                            className="h-10 text-sm font-mono font-semibold"
                           />
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {equivalentText}
+                          </p>
                         </div>
                       </div>
 
-                      {/* Reference Number */}
-                      <div>
-                        <Input
-                          placeholder="Referencia bancaria o código de confirmación (Opcional)..."
-                          value={p.reference || ""}
-                          onChange={(e) => handleUpdatePayment(p.tempId, { reference: e.target.value })}
-                          className="h-8 text-xs rounded-lg"
-                        />
-                      </div>
+                      <Input
+                        placeholder="Número de referencia o nota (opcional)"
+                        value={p.reference || ""}
+                        onChange={(e) =>
+                          handleUpdatePayment(p.tempId, {
+                            reference: e.target.value,
+                          })
+                        }
+                        className="h-10 text-sm"
+                      />
                     </div>
                   );
                 })}
@@ -641,29 +747,31 @@ export function PosCheckoutDialog({
             )}
           </div>
 
-          {/* Payment Balance Calculation Box */}
-          <div className="rounded-xl border border-border bg-card p-3.5 space-y-2 text-xs">
-            <div className="flex justify-between text-muted-foreground font-medium">
-              <span>Total Abonado (Equivalente USD):</span>
-              <span className="font-bold text-foreground font-mono">
+          {/* Resumen de saldo / vuelto */}
+          <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Total recibido (en USD):</span>
+              <span className="font-semibold text-foreground font-mono">
                 ${totalPaidUSD.toFixed(2)}
               </span>
             </div>
 
             {pendingBalanceUSD > 0.01 && (
-              <div className="flex justify-between text-amber-600 dark:text-amber-400 font-bold border-t border-border/60 pt-1.5">
-                <span>Saldo Pendiente por Cobrar:</span>
-                <span className="font-mono">${pendingBalanceUSD.toFixed(2)}</span>
+              <div className="flex justify-between text-amber-600 dark:text-amber-400 font-semibold border-t border-border/60 pt-2">
+                <span>Falta por pagar:</span>
+                <span className="font-mono">
+                  ${pendingBalanceUSD.toFixed(2)}
+                </span>
               </div>
             )}
 
             {changeUSD > 0.01 && (
-              <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold border-t border-border/60 pt-1.5">
-                <span>Vuelto / Cambio a Entregar:</span>
-                <div className="text-right">
-                  <span className="font-mono">${changeUSD.toFixed(2)} USD</span>
-                  {exchangeRate > 1 && (
-                    <span className="text-[11px] text-muted-foreground ml-1.5 font-mono">
+              <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold border-t border-border/60 pt-2">
+                <span>Vuelto a entregar:</span>
+                <div className="text-right font-mono">
+                  <span>${changeUSD.toFixed(2)}</span>
+                  {effectiveRate > 1 && (
+                    <span className="text-xs text-muted-foreground ml-1.5">
                       (Bs. {changeBs})
                     </span>
                   )}
@@ -673,25 +781,24 @@ export function PosCheckoutDialog({
           </div>
         </div>
 
-        {/* Sticky Anchored Footer (Permanently Visible with generous margins) */}
-        <DialogFooter className="m-0 mx-0 mb-0 shrink-0 px-6 py-4 border-t border-border bg-card flex sm:flex-row items-center justify-between gap-4 sticky bottom-0 z-20">
+        {/* Pie fijo */}
+        <div className="shrink-0 px-6 py-4 border-t border-border bg-muted/30 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <Button
             type="button"
             variant="outline"
-            size="sm"
             onClick={() => onOpenChange(false)}
-            className="h-10 px-5 rounded-xl text-xs font-semibold"
+            disabled={submitSaleMutation.isPending}
+            className="h-10 px-5 text-sm"
           >
             Cancelar
           </Button>
 
           <Button
             type="button"
-            size="sm"
             onClick={() => submitSaleMutation.mutate()}
             disabled={submitSaleMutation.isPending}
             className={cn(
-              "h-10 px-6 rounded-xl font-bold text-xs gap-2 shadow-sm transition-all",
+              "h-10 px-6 text-sm font-semibold gap-2",
               payments.length === 0 || totalPaidUSD === 0
                 ? "bg-amber-600 hover:bg-amber-700 text-white"
                 : pendingBalanceUSD > 0.01
@@ -701,27 +808,27 @@ export function PosCheckoutDialog({
           >
             {submitSaleMutation.isPending ? (
               <>
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                <span>Registrando Venta...</span>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Guardando venta...</span>
               </>
             ) : payments.length === 0 || totalPaidUSD === 0 ? (
               <>
                 <Clock className="h-4 w-4" />
-                <span>Registrar Venta Por Cobrar (${totalUSD.toFixed(2)})</span>
+                <span>Guardar como fiado (${totalUSD.toFixed(2)})</span>
               </>
             ) : pendingBalanceUSD > 0.01 ? (
               <>
                 <AlertTriangle className="h-4 w-4" />
-                <span>Confirmar Venta (Abono Parcial: ${totalPaidUSD.toFixed(2)})</span>
+                <span>Guardar con abono (${totalPaidUSD.toFixed(2)})</span>
               </>
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4" />
-                <span>Confirmar Venta y Cobro (${totalPaidUSD.toFixed(2)})</span>
+                <span>Confirmar cobro (${totalPaidUSD.toFixed(2)})</span>
               </>
             )}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

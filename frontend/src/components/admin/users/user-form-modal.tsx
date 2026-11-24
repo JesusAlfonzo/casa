@@ -8,15 +8,17 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { UserPlus, Shield, Loader2, Eye, EyeOff } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { UserPlus, Loader2, Eye, EyeOff } from "lucide-react";
 
 interface UserFormModalProps {
   open: boolean;
@@ -35,8 +37,10 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
 
-  // Fetch available roles
-  const { data: rolesData } = useQuery<{ success: boolean; data: RoleDetail[] }>({
+  const { data: rolesData } = useQuery<{
+    success: boolean;
+    data: RoleDetail[];
+  }>({
     queryKey: ["admin-roles-list"],
     queryFn: () => api.get("/roles?isActive=true"),
     enabled: open,
@@ -47,14 +51,14 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
   const createUserMutation = useMutation({
     mutationFn: (body: CreateUserDTO) => api.post("/users", body),
     onSuccess: () => {
-      toast.success("Usuario creado exitosamente");
+      toast.success("Usuario creado correctamente");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-roles"] });
       resetForm();
       onOpenChange(false);
     },
     onError: (err: unknown) => {
-      toast.error((err as Error).message || "Error al registrar el usuario");
+      toast.error((err as Error).message || "Error al crear el usuario");
     },
   });
 
@@ -71,7 +75,9 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
 
   const handleToggleRole = (roleId: string) => {
     setSelectedRoleIds((prev) =>
-      prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]
+      prev.includes(roleId)
+        ? prev.filter((id) => id !== roleId)
+        : [...prev, roleId]
     );
   };
 
@@ -79,11 +85,11 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
     e.preventDefault();
 
     if (!name.trim()) {
-      toast.error("El nombre del usuario es obligatorio");
+      toast.error("Escribe el nombre del usuario");
       return;
     }
     if (!email.trim() || !email.includes("@")) {
-      toast.error("Ingrese un correo electrónico válido");
+      toast.error("Escribe un correo electrónico válido");
       return;
     }
     if (!password || password.length < 8) {
@@ -110,166 +116,220 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
         onOpenChange(val);
       }}
     >
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <DialogContent className="sm:max-w-2xl max-h-[88dvh] p-0 gap-0 flex flex-col overflow-hidden">
+        {/* Encabezado */}
+        <DialogHeader className="px-6 py-5 border-b border-border shrink-0">
+          <div className="flex items-center gap-3 pr-8">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
               <UserPlus className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg">Nuevo Usuario del Sistema</DialogTitle>
-              <DialogDescription className="text-xs">
-                Cree un operador o empleado asignándole credenciales y roles iniciales.
+              <DialogTitle className="text-xl font-semibold">
+                Nuevo usuario
+              </DialogTitle>
+              <DialogDescription className="text-sm mt-0.5">
+                Crea el acceso para una persona y elige qué rol tendrá.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          {/* Nombre y Apellido */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Nombre *</Label>
-              <Input
-                placeholder="Carlos"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Apellido</Label>
-              <Input
-                placeholder="González"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Email y Teléfono */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Correo Electrónico *</Label>
-              <Input
-                type="email"
-                placeholder="carlos@empresa.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Teléfono</Label>
-              <Input
-                placeholder="+58 412 1234567"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Usuario y Contraseña */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Nombre de Usuario (Login)</Label>
-              <Input
-                placeholder="cgonzalez"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Contraseña Inicial *</Label>
-              <div className="relative">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col flex-1 min-h-0 overflow-hidden"
+        >
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+            {/* Nombre y Apellido */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="user-name" className="text-sm font-medium">
+                  Nombre *
+                </Label>
                 <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Mínimo 8 caracteres"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  id="user-name"
+                  placeholder="Ej. Carlos"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
-                  className="pr-9"
+                  className="h-10 text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="user-lastname" className="text-sm font-medium">
+                  Apellido
+                </Label>
+                <Input
+                  id="user-lastname"
+                  placeholder="Ej. González"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="h-10 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Correo y Teléfono */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="user-email" className="text-sm font-medium">
+                  Correo electrónico *
+                </Label>
+                <Input
+                  id="user-email"
+                  type="email"
+                  placeholder="carlos@correo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="h-10 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="user-phone" className="text-sm font-medium">
+                  Teléfono
+                </Label>
+                <Input
+                  id="user-phone"
+                  placeholder="Ej. 0412-1234567"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="h-10 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Usuario y Contraseña */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="user-username" className="text-sm font-medium">
+                  Usuario (opcional)
+                </Label>
+                <Input
+                  id="user-username"
+                  placeholder="Ej. carlos"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="h-10 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="user-password" className="text-sm font-medium">
+                  Contraseña inicial *
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="user-password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Mínimo 8 caracteres"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="h-10 pr-10 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                    aria-label={
+                      showPassword ? "Ocultar contraseña" : "Ver contraseña"
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Selector de Roles */}
+            <div className="space-y-3 pt-4 border-t border-border">
+              <div>
+                <h3 className="text-base font-semibold text-foreground">
+                  Roles del usuario
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Activa uno o más roles para definir qué podrá hacer en el
+                  sistema.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {roles.map((role) => {
+                  const isSelected = selectedRoleIds.includes(role.id);
+                  return (
+                    <div
+                      key={role.id}
+                      onClick={() => handleToggleRole(role.id)}
+                      className={cn(
+                        "flex items-center justify-between gap-3 rounded-xl border p-4 cursor-pointer transition-colors select-none",
+                        isSelected
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border bg-card hover:bg-muted/40"
+                      )}
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-foreground">
+                            {role.name}
+                          </span>
+                          {role.isSystem && (
+                            <Badge
+                              variant="secondary"
+                              className="text-xs font-normal"
+                            >
+                              Por defecto
+                            </Badge>
+                          )}
+                        </div>
+                        {role.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {role.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      >
+                        <Switch
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleRole(role.id)}
+                          aria-label={role.name}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          {/* Roles Selector */}
-          <div className="space-y-2 pt-2 border-t border-border">
-            <div className="flex items-center gap-1.5">
-              <Shield className="h-4 w-4 text-primary" />
-              <Label className="text-xs font-semibold">Roles del Usuario</Label>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Seleccione los roles que definirán el acceso y los permisos de este operador.
-            </p>
-
-            <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
-              {roles.map((role) => {
-                const isSelected = selectedRoleIds.includes(role.id);
-                return (
-                  <label
-                    key={role.id}
-                    className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer text-xs transition-colors select-none ${
-                      isSelected
-                        ? "border-primary bg-primary/5 text-primary shadow-2xs"
-                        : "border-border hover:bg-muted/50 text-foreground"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleToggleRole(role.id)}
-                      className="mt-0.5 rounded border-muted-foreground/30 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                    />
-                    <div className="flex-1 overflow-hidden">
-                      <div className="font-semibold flex items-center justify-between">
-                        <span>{role.name}</span>
-                        {role.isSystem && (
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                            SISTEMA
-                          </span>
-                        )}
-                      </div>
-                      {role.description && (
-                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                          {role.description}
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <DialogFooter className="pt-4">
+          {/* Pie fijo */}
+          <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-2.5 shrink-0">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={createUserMutation.isPending}
+              className="h-10 px-4 text-sm"
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={createUserMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={createUserMutation.isPending}
+              className="h-10 px-5 text-sm font-medium"
+            >
               {createUserMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Crear Usuario
+              Crear usuario
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

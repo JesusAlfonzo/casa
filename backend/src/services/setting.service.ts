@@ -2,6 +2,7 @@ import { prisma } from '#config/prisma.js';
 
 export interface SystemSettingsPayload {
   // 3. Streaming & WhatsApp
+  streaming_payment_reminder_template?: string;
   streaming_whatsapp_template?: string;
   streaming_days_alert_cutoff?: number;
   streaming_grace_period_days?: number;
@@ -29,6 +30,8 @@ export interface SystemSettingsPayload {
 
 const DEFAULT_SETTINGS: SystemSettingsPayload = {
   // 3. Streaming
+  streaming_payment_reminder_template:
+    'Hola {cliente}, te recordamos que tu membresía de {servicio} vence el {fecha_corte} (monto: {monto}). Avísanos cuando realices el pago para renovarla sin cortes. ¡Gracias!',
   streaming_whatsapp_template:
     'Hola {cliente}, aquí tienes los accesos a tu cuenta de {servicio}:\n\n📧 Correo: {email}\n🔑 Clave: {password}\n👤 Perfil: {perfil}\n🔒 PIN: {pin}\n📅 Vence el: {fecha_corte}\n\n¡Gracias por tu compra!',
   streaming_days_alert_cutoff: 5,
@@ -50,7 +53,7 @@ const DEFAULT_SETTINGS: SystemSettingsPayload = {
 
   // 6. Sistema
   system_session_timeout_minutes: 60,
-  system_system_name: 'CASA ERP',
+  system_system_name: 'Ventas de Casa',
   system_business_phone: '',
   system_enable_audit_logs: true,
 };

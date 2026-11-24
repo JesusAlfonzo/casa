@@ -184,6 +184,19 @@ async function main() {
     },
   });
 
+  const eurCurrency = await prisma.currency.upsert({
+    where: { code: 'EUR' },
+    update: { isBase: false, isActive: true },
+    create: {
+      code: 'EUR',
+      name: 'Euro',
+      symbol: '€',
+      isBase: false,
+      decimals: 2,
+      isActive: true,
+    },
+  });
+
   // Tasa de cambio USD -> VES
   const existingRate = await prisma.exchangeRate.findFirst({
     where: {
@@ -210,67 +223,112 @@ async function main() {
   // ============================================================================
   console.log('📌 4. Sembrando Métodos de Pago y Cuentas Financieras...');
 
-  const pmCash = await prisma.paymentMethod.upsert({
+  const pmCashUsd = await prisma.paymentMethod.upsert({
     where: { name: 'Efectivo USD' },
-    update: {},
+    update: { isActive: true },
     create: { name: 'Efectivo USD', requiresReference: false, isActive: true },
+  });
+
+  const pmCashVes = await prisma.paymentMethod.upsert({
+    where: { name: 'Efectivo Bs.' },
+    update: { isActive: true },
+    create: { name: 'Efectivo Bs.', requiresReference: false, isActive: true },
+  });
+
+  const pmCashEur = await prisma.paymentMethod.upsert({
+    where: { name: 'Efectivo EUR' },
+    update: { isActive: true },
+    create: { name: 'Efectivo EUR', requiresReference: false, isActive: true },
   });
 
   const pmPagoMovil = await prisma.paymentMethod.upsert({
     where: { name: 'Pago Móvil' },
-    update: {},
+    update: { isActive: true },
     create: { name: 'Pago Móvil', requiresReference: true, isActive: true },
-  });
-
-  const pmZelle = await prisma.paymentMethod.upsert({
-    where: { name: 'Zelle' },
-    update: {},
-    create: { name: 'Zelle', requiresReference: true, isActive: true },
   });
 
   const pmTransfer = await prisma.paymentMethod.upsert({
     where: { name: 'Transferencia Bancaria' },
-    update: {},
+    update: { isActive: true },
     create: { name: 'Transferencia Bancaria', requiresReference: true, isActive: true },
   });
 
-  const pmBinance = await prisma.paymentMethod.upsert({
-    where: { name: 'Binance Pay (USDT)' },
-    update: {},
-    create: { name: 'Binance Pay (USDT)', requiresReference: true, isActive: true },
+  const pmZinli = await prisma.paymentMethod.upsert({
+    where: { name: 'Zinli' },
+    update: { isActive: true },
+    create: { name: 'Zinli', requiresReference: true, isActive: true },
   });
 
-  // Cuentas financieras
-  let pettyCash = await prisma.financialAccount.findFirst({
-    where: { name: 'Caja Principal USD' },
+  const pmBinance = await prisma.paymentMethod.upsert({
+    where: { name: 'Binance' },
+    update: { isActive: true },
+    create: { name: 'Binance', requiresReference: true, isActive: true },
   });
-  if (!pettyCash) {
-    pettyCash = await prisma.financialAccount.create({
+
+  // Cuentas financieras reales del negocio
+  let pettyCashUsd = await prisma.financialAccount.findFirst({
+    where: { name: { in: ['Caja Efectivo USD', 'Caja Principal USD'] } },
+  });
+  if (!pettyCashUsd) {
+    pettyCashUsd = await prisma.financialAccount.create({
       data: {
-        name: 'Caja Principal USD',
+        name: 'Caja Efectivo USD',
         type: 'CASH_REGISTER',
         currencyId: usdCurrency.id,
         currentBalance: new Prisma.Decimal(500.0),
         isActive: true,
         paymentMethods: {
-          create: [{ paymentMethodId: pmCash.id }],
+          create: [{ paymentMethodId: pmCashUsd.id }],
+        },
+      },
+    });
+  }
+
+  let pettyCashVes = await prisma.financialAccount.findFirst({
+    where: { name: 'Caja Efectivo Bs.' },
+  });
+  if (!pettyCashVes) {
+    pettyCashVes = await prisma.financialAccount.create({
+      data: {
+        name: 'Caja Efectivo Bs.',
+        type: 'CASH_REGISTER',
+        currencyId: vesCurrency.id,
+        currentBalance: new Prisma.Decimal(0),
+        isActive: true,
+        paymentMethods: {
+          create: [{ paymentMethodId: pmCashVes.id }],
+        },
+      },
+    });
+  }
+
+  let pettyCashEur = await prisma.financialAccount.findFirst({
+    where: { name: 'Caja Efectivo EUR' },
+  });
+  if (!pettyCashEur) {
+    pettyCashEur = await prisma.financialAccount.create({
+      data: {
+        name: 'Caja Efectivo EUR',
+        type: 'CASH_REGISTER',
+        currencyId: eurCurrency.id,
+        currentBalance: new Prisma.Decimal(0),
+        isActive: true,
+        paymentMethods: {
+          create: [{ paymentMethodId: pmCashEur.id }],
         },
       },
     });
   }
 
   let bankAccount = await prisma.financialAccount.findFirst({
-    where: { name: 'Banesco Corriente VES' },
+    where: { name: { in: ['Banesco (VES)', 'Banesco Corriente VES'] } },
   });
   if (!bankAccount) {
     bankAccount = await prisma.financialAccount.create({
       data: {
-        name: 'Banesco Corriente VES',
+        name: 'Banesco (VES)',
         type: 'DOMESTIC_BANK',
-        bankName: 'Banesco Banco Universal',
-        accountNumber: '0134-0000-00-0000000000',
-        holderName: 'Inversiones Hybrid ERP C.A.',
-        identifier: 'J-501928374',
+        bankName: 'Banesco',
         currencyId: vesCurrency.id,
         currentBalance: new Prisma.Decimal(15000.0),
         isActive: true,
@@ -284,21 +342,37 @@ async function main() {
     });
   }
 
-  let zelleAccount = await prisma.financialAccount.findFirst({
-    where: { name: 'Zelle Corporativo' },
+  let zinliAccount = await prisma.financialAccount.findFirst({
+    where: { name: 'Zinli' },
   });
-  if (!zelleAccount) {
-    zelleAccount = await prisma.financialAccount.create({
+  if (!zinliAccount) {
+    zinliAccount = await prisma.financialAccount.create({
       data: {
-        name: 'Zelle Corporativo',
+        name: 'Zinli',
         type: 'DIGITAL_WALLET',
-        holderName: 'Hybrid ERP Services LLC',
-        identifier: 'pagos@erphibrido.com',
         currencyId: usdCurrency.id,
-        currentBalance: new Prisma.Decimal(2500.0),
+        currentBalance: new Prisma.Decimal(0),
         isActive: true,
         paymentMethods: {
-          create: [{ paymentMethodId: pmZelle.id }],
+          create: [{ paymentMethodId: pmZinli.id }],
+        },
+      },
+    });
+  }
+
+  let binanceAccount = await prisma.financialAccount.findFirst({
+    where: { name: 'Binance (USDT)' },
+  });
+  if (!binanceAccount) {
+    binanceAccount = await prisma.financialAccount.create({
+      data: {
+        name: 'Binance (USDT)',
+        type: 'DIGITAL_WALLET',
+        currencyId: usdtCurrency.id,
+        currentBalance: new Prisma.Decimal(0),
+        isActive: true,
+        paymentMethods: {
+          create: [{ paymentMethodId: pmBinance.id }],
         },
       },
     });
@@ -774,7 +848,7 @@ async function main() {
         total: new Prisma.Decimal(29.49),
         totalCollected: new Prisma.Decimal(29.49),
         soldAt: new Date(),
-        notes: 'Venta inicial de prueba completada con Zelle',
+        notes: 'Venta inicial de prueba completada con Zinli',
         items: {
           create: [
             {
@@ -803,13 +877,13 @@ async function main() {
             {
               flowType: 'INFLOW',
               status: 'VERIFIED',
-              financialAccountId: zelleAccount.id,
-              paymentMethodId: pmZelle.id,
+              financialAccountId: zinliAccount.id,
+              paymentMethodId: pmZinli.id,
               currencyId: usdCurrency.id,
               amount: new Prisma.Decimal(29.49),
               baseCurrencyAmount: new Prisma.Decimal(29.49),
-              reference: 'ZLL-9823741',
-              notes: 'Pago recibido por Zelle',
+              reference: 'ZNL-9823741',
+              notes: 'Pago recibido por Zinli',
             },
           ],
         },
@@ -837,9 +911,9 @@ async function main() {
       },
     });
 
-    // Incrementar saldo de la cuenta Zelle
+    // Incrementar saldo de la cuenta Zinli
     await prisma.financialAccount.update({
-      where: { id: zelleAccount.id },
+      where: { id: zinliAccount.id },
       data: {
         currentBalance: { increment: 29.49 },
       },
@@ -850,8 +924,8 @@ async function main() {
   console.log('────────────────────────────────────────────────────────────');
   console.log('👤 Usuario Administrador : admin@erphibrido.com');
   console.log('🔑 Contraseña            : AdminPassword123!');
-  console.log('💵 Monedas configuradas  : USD ($), VES (Bs.), USDT (₮)');
-  console.log('🏦 Cuentas financieras   : Caja Principal, Banesco, Zelle');
+  console.log('💵 Monedas configuradas  : USD ($), VES (Bs.), USDT (₮), EUR (€)');
+  console.log('🏦 Cuentas financieras   : Caja USD/Bs/EUR, Banesco, Zinli, Binance');
   console.log('📦 Productos en stock    : Xiaomi Buds 4 (29 uds), Anker 20W (45 uds)');
   console.log('📺 Cuenta Streaming Demo : netflix.premium.ve1@gmail.com (5 pantallas)');
   console.log('────────────────────────────────────────────────────────────');

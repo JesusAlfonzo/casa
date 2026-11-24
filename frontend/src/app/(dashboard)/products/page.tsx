@@ -4,11 +4,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { useDebounce } from "@/hooks/use-debounce";
-import {
-  type Product,
-  type Category,
-  type Brand,
-} from "@/types/inventory";
+import { type Product, type Category, type Brand } from "@/types/inventory";
 import { ProductStatsCards } from "@/components/products/product-stats-cards";
 import { ProductFormModal } from "@/components/products/product-form-modal";
 import { ProductDetailSheet } from "@/components/products/product-detail-sheet";
@@ -25,16 +21,12 @@ import {
   Power,
   ChevronLeft,
   ChevronRight,
-  Barcode,
   AlertTriangle,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -44,6 +36,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,10 +55,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
@@ -67,18 +66,20 @@ export default function ProductsPage() {
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedBrand, setSelectedBrand] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "ACTIVE" | "INACTIVE"
+  >("ALL");
   const [page, setPage] = useState(1);
   const limit = 12;
 
-  // Modals and detail states
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null
+  );
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
-  // Queries
   const params = new URLSearchParams();
   params.set("page", String(page));
   params.set("limit", String(limit));
@@ -94,15 +95,25 @@ export default function ProductsPage() {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ["products-list", page, debouncedSearch, selectedCategory, selectedBrand, statusFilter],
+    queryKey: [
+      "products-list",
+      page,
+      debouncedSearch,
+      selectedCategory,
+      selectedBrand,
+      statusFilter,
+    ],
     queryFn: async () => {
-      const res = await api.get<{
-        data?: Product[];
-        items?: Product[];
-        meta?: { total: number; totalPages: number };
-        total?: number;
-        totalPages?: number;
-      } | Product[]>(`/products?${params.toString()}`);
+      const res = await api.get<
+        | {
+            data?: Product[];
+            items?: Product[];
+            meta?: { total: number; totalPages: number };
+            total?: number;
+            totalPages?: number;
+          }
+        | Product[]
+      >(`/products?${params.toString()}`);
 
       if (Array.isArray(res)) {
         return { data: res, total: res.length, totalPages: 1 };
@@ -117,9 +128,9 @@ export default function ProductsPage() {
   const { data: categoriesRes } = useQuery({
     queryKey: ["categories-all"],
     queryFn: async () => {
-      const res = await api.get<{ data?: Category[]; items?: Category[] } | Category[]>(
-        "/categories?limit=100"
-      );
+      const res = await api.get<
+        { data?: Category[]; items?: Category[] } | Category[]
+      >("/categories?limit=100");
       if (Array.isArray(res)) return res;
       return res.data || res.items || [];
     },
@@ -140,7 +151,9 @@ export default function ProductsPage() {
     queryKey: ["current-exchange-rate"],
     queryFn: async () => {
       try {
-        const res = await api.get<{ rate: number | string }>("/exchange-rates/current");
+        const res = await api.get<{ rate: number | string }>(
+          "/exchange-rates/current"
+        );
         return Number(res?.rate || 1);
       } catch {
         return 50.0;
@@ -155,7 +168,11 @@ export default function ProductsPage() {
   const categories = categoriesRes || [];
   const brands = brandsRes || [];
 
-  // Mutations
+  const selectedBrandName =
+    selectedBrand === "ALL"
+      ? "Todas las marcas"
+      : brands.find((b) => b.id === selectedBrand)?.name || "Marca";
+
   const toggleStatusMutation = useMutation({
     mutationFn: async (id: string) => {
       return api.patch(`/products/${id}/status`, {});
@@ -192,115 +209,98 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-10">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Encabezado */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Catálogo de Productos Físicos
-            </h1>
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-              Inventario Central
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Gestión completa de artículos, existencias multi-almacén, márgenes comerciales y alertas de reposición.
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Productos
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Administra tus productos, precios en dólares y bolívares, y cuántas
+            unidades tienes disponibles.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="gap-1.5 text-xs"
+            className="h-10 px-4 text-sm gap-2"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-            Actualizar
+            <RefreshCw
+              className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+            />
+            <span>Actualizar</span>
           </Button>
 
           <Button
-            size="sm"
             onClick={handleOpenCreateModal}
-            className="gap-1.5 shadow-xs"
+            className="h-10 px-5 text-sm font-medium gap-2"
           >
             <Plus className="h-4 w-4" />
-            Crear Producto
+            <span>Nuevo producto</span>
           </Button>
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* Tarjetas de resumen */}
       <ProductStatsCards
         products={products}
         totalFromApi={total}
         exchangeRate={exchangeRate}
       />
 
-      {/* Filter and Table Card */}
-      <Card className="border-border shadow-xs">
-        <CardHeader className="p-5 sm:p-6 pb-4 sm:pb-4">
+      {/* Filtros y Tabla */}
+      <Card className="border-border shadow-2xs rounded-xl">
+        <CardHeader className="p-5 sm:p-6 pb-4 space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            {/* Search Input */}
+            {/* Buscador */}
             <div className="relative flex-1 lg:max-w-md">
               {searchTerm !== debouncedSearch ? (
-                <Loader2 className="absolute left-3 top-3 h-4 w-4 animate-spin text-primary" />
+                <Loader2 className="absolute left-3.5 top-3 h-4 w-4 animate-spin text-primary" />
               ) : (
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
               )}
               <Input
-                placeholder="Buscar por SKU, código de barras o nombre..."
+                placeholder="Buscar por nombre, código o código de barras..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
                   setPage(1);
                 }}
-                className="h-10 pl-10 text-xs sm:text-sm"
+                className="h-10 pl-10 text-sm rounded-xl"
               />
             </div>
 
-            {/* Select Filters */}
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                aria-label="Filtrar por categoría"
-                className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                value={selectedCategory}
-                onChange={(e) => {
-                  setSelectedCategory(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="ALL">Todas las Categorías</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+            {/* Filtro de marca y estado */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {brands.length > 0 && (
+                <Select
+                  value={selectedBrand}
+                  onValueChange={(val) => {
+                    setSelectedBrand(val || "ALL");
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-44 h-10 text-sm">
+                    <SelectValue>{selectedBrandName}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todas las marcas</SelectItem>
+                    {brands.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
-              <select
-                aria-label="Filtrar por marca"
-                className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                value={selectedBrand}
-                onChange={(e) => {
-                  setSelectedBrand(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="ALL">Todas las Marcas</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <Button
-                  size="sm"
                   variant={statusFilter === "ALL" ? "default" : "outline"}
-                  className="h-8 text-xs"
+                  className="h-9 px-3.5 text-sm rounded-xl"
                   onClick={() => {
                     setStatusFilter("ALL");
                     setPage(1);
@@ -309,9 +309,8 @@ export default function ProductsPage() {
                   Todos
                 </Button>
                 <Button
-                  size="sm"
                   variant={statusFilter === "ACTIVE" ? "default" : "outline"}
-                  className="h-8 text-xs"
+                  className="h-9 px-3.5 text-sm rounded-xl"
                   onClick={() => {
                     setStatusFilter("ACTIVE");
                     setPage(1);
@@ -320,9 +319,8 @@ export default function ProductsPage() {
                   Activos
                 </Button>
                 <Button
-                  size="sm"
                   variant={statusFilter === "INACTIVE" ? "default" : "outline"}
-                  className="h-8 text-xs"
+                  className="h-9 px-3.5 text-sm rounded-xl"
                   onClick={() => {
                     setStatusFilter("INACTIVE");
                     setPage(1);
@@ -333,44 +331,102 @@ export default function ProductsPage() {
               </div>
             </div>
           </div>
+
+          {/* Barra rápida de categorías */}
+          {categories.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 border-t border-border/60">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground mr-1 shrink-0">
+                <Tag className="h-3.5 w-3.5" />
+                <span>Categoría:</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory("ALL");
+                  setPage(1);
+                }}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors shrink-0 border",
+                  selectedCategory === "ALL"
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted/60"
+                )}
+              >
+                Todas
+              </button>
+
+              {categories.map((cat) => {
+                const isSelected = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(isSelected ? "ALL" : cat.id);
+                      setPage(1);
+                    }}
+                    className={cn(
+                      "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors shrink-0 border",
+                      isSelected
+                        ? "bg-foreground text-background border-foreground"
+                        : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted/60"
+                    )}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </CardHeader>
 
         <CardContent className="p-4 sm:p-6 pt-0">
-          <div className="rounded-lg border border-border bg-card shadow-xs overflow-hidden">
-            <Table className="w-full">
+          <div className="rounded-xl border border-border bg-card overflow-x-auto">
+            <Table className="min-w-[780px] w-full">
               <TableHeader>
-                <TableRow>
-                  <TableHead className="h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Producto</TableHead>
-                  <TableHead className="text-right h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Precio</TableHead>
-                  <TableHead className="text-center h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stock</TableHead>
-                  <TableHead className="text-center h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</TableHead>
-                  <TableHead className="text-right h-11 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-[70px]">Acciones</TableHead>
+                <TableRow className="bg-muted/40 border-b border-border">
+                  <TableHead className="py-3.5 px-5 text-sm font-semibold">
+                    Producto
+                  </TableHead>
+                  <TableHead className="py-3.5 px-4 text-right text-sm font-semibold">
+                    Precio de venta
+                  </TableHead>
+                  <TableHead className="py-3.5 px-4 text-center text-sm font-semibold">
+                    Existencia (Stock)
+                  </TableHead>
+                  <TableHead className="py-3.5 px-4 text-center text-sm font-semibold">
+                    Estado
+                  </TableHead>
+                  <TableHead className="py-3.5 px-5 text-right text-sm font-semibold">
+                    Acciones
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-44 text-center py-4 px-4 text-xs">
+                    <TableCell colSpan={5} className="h-44 text-center">
                       <div className="flex flex-col items-center justify-center gap-2">
-                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                        <span className="text-xs text-muted-foreground">
-                          Cargando catálogo...
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <span className="text-sm text-muted-foreground">
+                          Cargando productos...
                         </span>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-44 text-center py-4 px-4 text-xs">
+                    <TableCell colSpan={5} className="h-44 text-center">
                       <div className="flex flex-col items-center justify-center gap-2">
-                        <Package className="h-8 w-8 text-muted-foreground" />
-                        <span className="text-sm font-semibold text-foreground">
+                        <Package className="h-9 w-9 text-muted-foreground" />
+                        <span className="text-base font-semibold text-foreground">
                           No se encontraron productos
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {searchTerm
-                            ? "Prueba cambiando el término de búsqueda o filtros."
-                            : "Crea tu primer producto físico con el botón superior."}
+                        <span className="text-sm text-muted-foreground">
+                          {searchTerm || selectedCategory !== "ALL"
+                            ? "Prueba limpiando la búsqueda o cambiando de categoría."
+                            : "Agrega tu primer producto con el botón «Nuevo producto»."}
                         </span>
                       </div>
                     </TableCell>
@@ -391,95 +447,105 @@ export default function ProductsPage() {
                     const isOutOfStock = available <= 0;
 
                     const price = Number(product.baseSalePrice || 0);
+                    const priceBs = (price * exchangeRate).toFixed(2);
                     const cost = Number(product.averageCost || 0);
                     const margin =
-                      price > 0 ? (((price - cost) / price) * 100).toFixed(0) : "0";
+                      price > 0
+                        ? (((price - cost) / price) * 100).toFixed(0)
+                        : "0";
+                    const unitAbbr =
+                      product.measurementUnit?.abbreviation || "und.";
 
                     return (
                       <TableRow
                         key={product.id}
-                        className="cursor-pointer transition-colors hover:bg-muted/50"
+                        className="cursor-pointer transition-colors hover:bg-muted/40 border-b border-border/60"
                         onClick={() => handleOpenDetailSheet(product)}
                       >
-                        {/* Producto & Identificación */}
-                        <TableCell className="py-3.5 px-4 text-xs">
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span className="font-semibold text-xs text-foreground line-clamp-1">
+                        {/* Producto */}
+                        <TableCell className="py-4 px-5">
+                          <div className="flex flex-col gap-1.5 min-w-0">
+                            <span className="font-semibold text-sm text-foreground line-clamp-1">
                               {product.name}
                             </span>
-                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                              <span className="font-mono font-medium text-foreground/80">
-                                {product.sku}
-                              </span>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               {product.category?.name && (
-                                <>
-                                  <span>•</span>
-                                  <span className="truncate max-w-[130px]">
-                                    {product.category.name}
-                                  </span>
-                                </>
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs font-normal px-2 py-0"
+                                >
+                                  {product.category.name}
+                                </Badge>
                               )}
                               {product.brand?.name && (
-                                <>
-                                  <span>•</span>
-                                  <span className="truncate max-w-[110px]">
-                                    {product.brand.name}
-                                  </span>
-                                </>
+                                <span>{product.brand.name}</span>
                               )}
+                              <span className="font-mono text-muted-foreground/80">
+                                {product.sku}
+                              </span>
                             </div>
                           </div>
                         </TableCell>
 
-                        {/* Precio & Margen */}
-                        <TableCell className="py-3.5 px-4 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="font-bold text-xs text-foreground font-mono">
+                        {/* Precio y ganancia */}
+                        <TableCell className="py-4 px-4 text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="font-bold text-base text-foreground font-mono">
                               ${price.toFixed(2)}
                             </span>
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                              +{margin}% ({cost > 0 ? `$${cost.toFixed(2)} cto.` : "sin costo"})
+                            {exchangeRate > 1 && (
+                              <span className="text-xs font-mono text-muted-foreground">
+                                Bs. {priceBs}
+                              </span>
+                            )}
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                              {cost > 0
+                                ? `Costo $${cost.toFixed(2)} • +${margin}%`
+                                : "Sin costo cargado"}
                             </span>
                           </div>
                         </TableCell>
 
-                        {/* Stock Disponible */}
-                        <TableCell className="py-3.5 px-4 text-center">
+                        {/* Existencia (Stock) */}
+                        <TableCell className="py-4 px-4 text-center">
                           {isOutOfStock ? (
-                            <Badge variant="destructive" className="text-[10px] font-bold">
+                            <Badge
+                              variant="destructive"
+                              className="text-xs font-semibold px-3 py-1"
+                            >
                               Agotado (0)
                             </Badge>
                           ) : isCritical ? (
                             <Badge
                               variant="outline"
-                              className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold"
+                              className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-semibold px-3 py-1"
                             >
-                              <AlertTriangle className="mr-1 h-3 w-3" />
-                              {available} {product.measurementUnit?.abbreviation || "und."}
+                              <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
+                              Quedan {available} {unitAbbr}
                             </Badge>
                           ) : (
                             <Badge
                               variant="outline"
-                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold"
+                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-semibold px-3 py-1"
                             >
-                              {available} {product.measurementUnit?.abbreviation || "und."}
+                              {available} {unitAbbr}
                             </Badge>
                           )}
                         </TableCell>
 
                         {/* Estado */}
-                        <TableCell className="py-3.5 px-4 text-center">
+                        <TableCell className="py-4 px-4 text-center">
                           {product.isActive ? (
                             <Badge
                               variant="outline"
-                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px]"
+                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium"
                             >
                               Activo
                             </Badge>
                           ) : (
                             <Badge
-                              variant="outline"
-                              className="border-muted bg-muted text-muted-foreground text-[10px]"
+                              variant="secondary"
+                              className="text-xs font-normal"
                             >
                               Inactivo
                             </Badge>
@@ -488,58 +554,81 @@ export default function ProductsPage() {
 
                         {/* Acciones */}
                         <TableCell
-                          className="py-3.5 px-4 text-right text-xs"
+                          className="py-4 px-5 text-right"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              render={
-                                <Button
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  aria-label="Opciones de producto"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              }
-                            />
-                            <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuLabel className="text-xs">
-                                Acciones
-                              </DropdownMenuLabel>
-                              <DropdownMenuItem
-                                onClick={() => handleOpenDetailSheet(product)}
-                                className="text-xs gap-2"
-                              >
-                                <Eye className="h-4 w-4" />
-                                Ver Detalle Completo
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleOpenEditModal(product)}
-                                className="text-xs gap-2"
-                              >
-                                <Edit className="h-4 w-4" />
-                                Editar Producto
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  toggleStatusMutation.mutate(product.id)
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-9 px-2.5 text-sm gap-1.5"
+                              onClick={() => handleOpenDetailSheet(product)}
+                            >
+                              <Eye className="h-4 w-4" />
+                              <span>Ver</span>
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={() => handleOpenEditModal(product)}
+                              title="Editar producto"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9"
+                                    aria-label="Más opciones"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
                                 }
-                                className="text-xs gap-2"
-                              >
-                                <Power className="h-4 w-4" />
-                                {product.isActive ? "Desactivar" : "Activar"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setDeleteTarget(product)}
-                                className="text-xs gap-2 text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Eliminar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                              />
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuLabel className="text-xs">
+                                  Opciones
+                                </DropdownMenuLabel>
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenDetailSheet(product)}
+                                  className="text-sm gap-2"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  Ver detalle
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenEditModal(product)}
+                                  className="text-sm gap-2"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  Editar producto
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    toggleStatusMutation.mutate(product.id)
+                                  }
+                                  className="text-sm gap-2"
+                                >
+                                  <Power className="h-4 w-4" />
+                                  {product.isActive ? "Desactivar" : "Activar"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setDeleteTarget(product)}
+                                  className="text-sm gap-2 text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Eliminar
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -549,46 +638,48 @@ export default function ProductsPage() {
             </Table>
           </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-xs text-muted-foreground mt-3">
-            <span>
-              Total: <strong>{total}</strong> productos registrados
-            </span>
-            <div className="flex flex-wrap items-center gap-2">
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border px-4 py-3.5 text-sm text-muted-foreground mt-3">
               <span>
-                Página {page} de {totalPages || 1}
+                Total: <strong>{total}</strong> productos
               </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 w-8 p-0"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 w-8 p-0"
-                disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <span>
+                  Página {page} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  disabled={page <= 1}
+                  onClick={() => setPage(page - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(page + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Product Form Modal */}
+      {/* Modal Crear / Editar */}
       <ProductFormModal
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         product={editingProduct}
       />
 
-      {/* Product Detail Sheet */}
+      {/* Panel de Detalle */}
       <ProductDetailSheet
         productId={selectedProductId}
         open={isDetailOpen}
@@ -600,46 +691,65 @@ export default function ProductsPage() {
         exchangeRate={exchangeRate}
       />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Confirmación de Eliminación */}
       <Dialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              ¿Eliminar producto?
-            </DialogTitle>
-            <DialogDescription className="space-y-2 pt-2">
-              <p>
-                Estás a punto de eliminar el producto{" "}
-                <strong>{deleteTarget?.name}</strong> (SKU: {deleteTarget?.sku}).
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Si este producto posee compras, ventas o movimientos de inventario históricos,
-                el sistema lo marcará como desactivado/archivado para preservar la integridad contable.
-              </p>
-            </DialogDescription>
+        <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden rounded-2xl">
+          <DialogHeader className="px-6 py-5 border-b border-border">
+            <div className="flex items-center gap-3 pr-10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive shrink-0">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-semibold">
+                  Eliminar producto
+                </DialogTitle>
+                <DialogDescription className="text-sm mt-0.5">
+                  Confirma si deseas quitar{" "}
+                  <strong className="text-foreground">
+                    {deleteTarget?.name}
+                  </strong>
+                  .
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+
+          <div className="p-6 text-sm text-muted-foreground leading-relaxed">
+            Si este producto ya tiene ventas o compras registradas, se
+            desactivará para no perder el historial. Si no tiene movimientos, se
+            eliminará por completo.
+          </div>
+
+          <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-2.5">
             <Button
               type="button"
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={deleteMutation.isPending}
+              className="h-10 px-4 text-sm"
             >
               Cancelar
             </Button>
             <Button
               type="button"
               variant="destructive"
-              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              onClick={() =>
+                deleteTarget && deleteMutation.mutate(deleteTarget.id)
+              }
               disabled={deleteMutation.isPending}
+              className="h-10 px-5 text-sm font-medium gap-2"
             >
-              {deleteMutation.isPending ? "Eliminando..." : "Confirmar Eliminación"}
+              {deleteMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              <span>
+                {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+              </span>
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

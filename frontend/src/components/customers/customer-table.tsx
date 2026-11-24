@@ -28,7 +28,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -82,11 +81,8 @@ export function CustomerTable({
   onEditCustomer,
 }: CustomerTableProps) {
   const queryClient = useQueryClient();
-
-  // Deletion modal state
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
 
-  // Toggle active status mutation
   const toggleStatusMutation = useMutation({
     mutationFn: async (id: string) => {
       return api.patch<{ success: boolean; data: Customer }>(
@@ -99,7 +95,6 @@ export function CustomerTable({
     },
   });
 
-  // Delete customer mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       return api.delete<{
@@ -129,43 +124,40 @@ export function CustomerTable({
 
   return (
     <div className="space-y-4">
-      {/* Search and Filters Bar */}
+      {/* Buscador y filtros */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 sm:max-w-md">
           {isSearching ? (
-            <Loader2 className="absolute left-3 top-3 h-4 w-4 animate-spin text-primary" />
+            <Loader2 className="absolute left-3.5 top-3 h-4 w-4 animate-spin text-primary" />
           ) : (
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
           )}
           <Input
-            placeholder="Buscar por nombre, cédula, teléfono o email..."
-            className="h-10 pl-10 text-xs sm:text-sm"
+            placeholder="Buscar por nombre, cédula, teléfono o correo..."
+            className="h-10 pl-10 text-sm bg-card rounded-xl"
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
           />
         </div>
 
-        <div className="flex items-center gap-1.5 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <Button
-            size="sm"
             variant={statusFilter === "ALL" ? "default" : "outline"}
-            className="text-xs"
+            className="h-9 px-4 text-sm rounded-xl"
             onClick={() => onStatusFilterChange("ALL")}
           >
             Todos
           </Button>
           <Button
-            size="sm"
             variant={statusFilter === "ACTIVE" ? "default" : "outline"}
-            className="text-xs"
+            className="h-9 px-4 text-sm rounded-xl"
             onClick={() => onStatusFilterChange("ACTIVE")}
           >
             Activos
           </Button>
           <Button
-            size="sm"
             variant={statusFilter === "INACTIVE" ? "default" : "outline"}
-            className="text-xs"
+            className="h-9 px-4 text-sm rounded-xl"
             onClick={() => onStatusFilterChange("INACTIVE")}
           >
             Inactivos
@@ -173,18 +165,32 @@ export function CustomerTable({
         </div>
       </div>
 
-      {/* Customers Data Table */}
-      <div className="rounded-lg border border-border bg-card shadow-xs overflow-x-auto">
-        <Table className="min-w-[850px] w-full">
+      {/* Tabla de clientes */}
+      <div className="rounded-xl border border-border bg-card shadow-2xs overflow-x-auto">
+        <Table className="min-w-[820px] w-full">
           <TableHeader>
-            <TableRow>
-              <TableHead className="w-[300px] h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliente</TableHead>
-              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Documento</TableHead>
-              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Teléfono / WhatsApp</TableHead>
-              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Streaming</TableHead>
-              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">Ventas</TableHead>
-              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</TableHead>
-              <TableHead className="h-12 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Acciones</TableHead>
+            <TableRow className="bg-muted/40 border-b border-border">
+              <TableHead className="w-[280px] py-3.5 px-5 text-sm font-semibold">
+                Cliente
+              </TableHead>
+              <TableHead className="py-3.5 px-4 text-sm font-semibold">
+                Cédula
+              </TableHead>
+              <TableHead className="py-3.5 px-4 text-sm font-semibold">
+                Teléfono / WhatsApp
+              </TableHead>
+              <TableHead className="py-3.5 px-4 text-sm font-semibold text-center">
+                Streaming
+              </TableHead>
+              <TableHead className="py-3.5 px-4 text-sm font-semibold text-center">
+                Compras
+              </TableHead>
+              <TableHead className="py-3.5 px-4 text-sm font-semibold">
+                Estado
+              </TableHead>
+              <TableHead className="py-3.5 px-5 text-sm font-semibold text-right">
+                Acciones
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -192,8 +198,8 @@ export function CustomerTable({
               <TableRow>
                 <TableCell colSpan={7} className="h-48 text-center">
                   <div className="flex flex-col items-center justify-center gap-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    <span className="text-xs text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">
                       Cargando clientes...
                     </span>
                   </div>
@@ -204,13 +210,13 @@ export function CustomerTable({
                 <TableCell colSpan={7} className="h-48 text-center">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <User className="h-8 w-8 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="text-base font-medium text-foreground">
                       No se encontraron clientes
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-sm text-muted-foreground">
                       {searchTerm
-                        ? "Prueba cambiando el término de búsqueda o el filtro."
-                        : "Registra tu primer cliente usando el botón superior."}
+                        ? "Prueba buscando con otro nombre o número."
+                        : "Registra tu primer cliente usando el botón «Nuevo cliente»."}
                     </span>
                   </div>
                 </TableCell>
@@ -223,28 +229,28 @@ export function CustomerTable({
                 return (
                   <TableRow
                     key={customer.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/50"
+                    className="cursor-pointer transition-colors hover:bg-muted/40 border-b border-border/60"
                     onClick={() => onSelectCustomer(customer)}
                   >
-                    {/* Cliente Info */}
-                    <TableCell className="py-4 px-5 text-xs">
+                    {/* Cliente */}
+                    <TableCell className="py-4 px-5">
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 border border-border text-xs font-semibold">
+                        <Avatar className="h-10 w-10 border border-border text-sm font-semibold">
                           <AvatarFallback>
                             {getInitials(customer.name, customer.lastName)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-sm text-foreground">
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-semibold text-sm text-foreground truncate">
                             {customer.name} {customer.lastName || ""}
                           </span>
                           {customer.email ? (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {customer.email}
+                            <span className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                              <Mail className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{customer.email}</span>
                             </span>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground/60 italic">
+                            <span className="text-xs text-muted-foreground/60">
                               Sin correo
                             </span>
                           )}
@@ -252,84 +258,87 @@ export function CustomerTable({
                       </div>
                     </TableCell>
 
-                    {/* Documento */}
-                    <TableCell className="py-4 px-5 text-xs">
+                    {/* Cédula */}
+                    <TableCell className="py-4 px-4 text-sm">
                       {customer.documentId ? (
-                        <span className="font-mono text-xs font-medium text-foreground">
+                        <span className="font-mono font-medium text-foreground">
                           {customer.documentId}
                         </span>
                       ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
 
-                    {/* Teléfono & WhatsApp */}
-                    <TableCell className="py-4 px-5 text-xs" onClick={(e) => e.stopPropagation()}>
+                    {/* Teléfono / WhatsApp */}
+                    <TableCell
+                      className="py-4 px-4 text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {customer.phone ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-foreground font-medium">
+                          <span className="font-medium text-foreground">
                             {customer.phone}
                           </span>
                           <Button
-                            size="sm"
+                            size="icon"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
                             onClick={(e) =>
                               handleWhatsAppClick(e, customer.phone)
                             }
-                            title="Abrir chat en WhatsApp"
+                            title="Escribir por WhatsApp"
                           >
                             <MessageCircle className="h-4 w-4" />
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
 
-                    {/* Suscripciones Streaming */}
-                    <TableCell className="py-4 px-5 text-xs text-center">
+                    {/* Streaming */}
+                    <TableCell className="py-4 px-4 text-center">
                       {subCount > 0 ? (
                         <Badge
                           variant="outline"
-                          className="border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-semibold"
+                          className="border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-medium"
                         >
-                          <Tv className="mr-1 h-3 w-3" />
+                          <Tv className="mr-1 h-3.5 w-3.5" />
                           {subCount} {subCount === 1 ? "pantalla" : "pantallas"}
                         </Badge>
                       ) : (
-                        <span className="text-xs text-muted-foreground">0</span>
+                        <span className="text-sm text-muted-foreground">0</span>
                       )}
                     </TableCell>
 
-                    {/* Ventas POS */}
-                    <TableCell className="py-4 px-5 text-xs text-center">
+                    {/* Compras */}
+                    <TableCell className="py-4 px-4 text-center">
                       {salesCount > 0 ? (
                         <Badge
                           variant="outline"
-                          className="border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold"
+                          className="border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium"
                         >
-                          <ShoppingCart className="mr-1 h-3 w-3" />
+                          <ShoppingCart className="mr-1 h-3.5 w-3.5" />
                           {salesCount}
                         </Badge>
                       ) : (
-                        <span className="text-xs text-muted-foreground">0</span>
+                        <span className="text-sm text-muted-foreground">0</span>
                       )}
                     </TableCell>
 
                     {/* Estado */}
-                    <TableCell className="py-4 px-5 text-xs">
+                    <TableCell className="py-4 px-4">
                       {customer.isActive ? (
                         <Badge
                           variant="outline"
-                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs"
+                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium"
                         >
                           Activo
                         </Badge>
                       ) : (
                         <Badge
-                          variant="outline"
-                          className="border-muted bg-muted text-muted-foreground text-xs"
+                          variant="secondary"
+                          className="text-xs font-normal"
                         >
                           Inactivo
                         </Badge>
@@ -338,69 +347,82 @@ export function CustomerTable({
 
                     {/* Acciones */}
                     <TableCell
-                      className="py-4 px-5 text-xs text-right"
+                      className="py-4 px-5 text-right"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              aria-label="Abrir opciones de cliente"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuLabel className="text-xs">
-                            Acciones
-                          </DropdownMenuLabel>
-                          <DropdownMenuItem
-                            onClick={() => onSelectCustomer(customer)}
-                            className="text-xs gap-2"
-                          >
-                            <Eye className="h-4 w-4" />
-                            Ver Perfil 360°
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onEditCustomer(customer)}
-                            className="text-xs gap-2"
-                          >
-                            <Edit className="h-4 w-4" />
-                            Editar Cliente
-                          </DropdownMenuItem>
-                          {customer.phone && (
-                            <DropdownMenuItem
-                              onClick={(e) =>
-                                handleWhatsAppClick(e, customer.phone)
-                              }
-                              className="text-xs gap-2 text-emerald-600 dark:text-emerald-400"
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                              Contactar WhatsApp
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() =>
-                              toggleStatusMutation.mutate(customer.id)
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 px-2.5 text-sm gap-1.5"
+                          onClick={() => onSelectCustomer(customer)}
+                        >
+                          <Eye className="h-4 w-4" />
+                          <span>Ver</span>
+                        </Button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9"
+                                aria-label="Más opciones"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
                             }
-                            className="text-xs gap-2"
-                          >
-                            <Power className="h-4 w-4" />
-                            {customer.isActive ? "Desactivar" : "Activar"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setDeleteTarget(customer)}
-                            className="text-xs gap-2 text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Eliminar Cliente
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          />
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuLabel className="text-xs">
+                              Opciones
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => onSelectCustomer(customer)}
+                              className="text-sm gap-2"
+                            >
+                              <Eye className="h-4 w-4" />
+                              Ver ficha
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => onEditCustomer(customer)}
+                              className="text-sm gap-2"
+                            >
+                              <Edit className="h-4 w-4" />
+                              Editar datos
+                            </DropdownMenuItem>
+                            {customer.phone && (
+                              <DropdownMenuItem
+                                onClick={(e) =>
+                                  handleWhatsAppClick(e, customer.phone)
+                                }
+                                className="text-sm gap-2 text-emerald-600 dark:text-emerald-400"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                                Escribir por WhatsApp
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() =>
+                                toggleStatusMutation.mutate(customer.id)
+                              }
+                              className="text-sm gap-2"
+                            >
+                              <Power className="h-4 w-4" />
+                              {customer.isActive ? "Desactivar" : "Activar"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setDeleteTarget(customer)}
+                              className="text-sm gap-2 text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Eliminar cliente
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -409,81 +431,93 @@ export function CustomerTable({
           </TableBody>
         </Table>
 
-        {/* Pagination Bar */}
-        <div className="flex items-center justify-between border-t border-border px-5 py-4 text-xs text-muted-foreground">
-          <span>
-            Mostrando <strong>{customers.length}</strong> de{" "}
-            <strong>{total}</strong> clientes
-          </span>
-          <div className="flex items-center gap-2">
+        {/* Paginación */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-border px-5 py-3.5 text-sm text-muted-foreground bg-muted/20">
             <span>
-              Página {page} de {totalPages || 1}
+              Mostrando <strong>{customers.length}</strong> de{" "}
+              <strong>{total}</strong> clientes
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 w-8 p-0"
-              disabled={page <= 1}
-              onClick={() => onPageChange(page - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 w-8 p-0"
-              disabled={page >= totalPages}
-              onClick={() => onPageChange(page + 1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <span>
+                Página {page} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                disabled={page <= 1}
+                onClick={() => onPageChange(page - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(page + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Confirmación de eliminación */}
       <Dialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              ¿Eliminar cliente?
-            </DialogTitle>
-            <DialogDescription className="space-y-2 pt-2">
-              <p>
-                Estás a punto de eliminar a{" "}
-                <strong>
-                  {deleteTarget?.name} {deleteTarget?.lastName || ""}
-                </strong>
-                .
-              </p>
-              {(deleteTarget?._count?.sales || 0) > 0 ||
-              (deleteTarget?._count?.subscriptions || 0) > 0 ? (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
-                  Este cliente posee historial comercial registrado (
-                  {deleteTarget?._count?.sales || 0} ventas y{" "}
-                  {deleteTarget?._count?.subscriptions || 0} suscripciones). Por
-                  política de integridad contable, el sistema realizará un{" "}
-                  <strong>borrado lógico (soft-delete)</strong> desactivándolo de
-                  forma segura sin alterar los registros históricos.
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Este cliente no posee transacciones asociadas y será
-                  removido completamente de la base de datos.
-                </p>
-              )}
-            </DialogDescription>
+        <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden rounded-2xl">
+          <DialogHeader className="px-6 py-5 border-b border-border">
+            <div className="flex items-center gap-3 pr-10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive shrink-0">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-semibold">
+                  Eliminar cliente
+                </DialogTitle>
+                <DialogDescription className="text-sm mt-0.5">
+                  Confirma si deseas quitar a{" "}
+                  <strong className="text-foreground">
+                    {deleteTarget?.name} {deleteTarget?.lastName || ""}
+                  </strong>
+                  .
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+
+          <div className="p-6 text-sm">
+            {(deleteTarget?._count?.sales || 0) > 0 ||
+            (deleteTarget?._count?.subscriptions || 0) > 0 ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-300 leading-relaxed">
+                Este cliente ya tiene{" "}
+                <strong>{deleteTarget?._count?.sales || 0} ventas</strong> y{" "}
+                <strong>
+                  {deleteTarget?._count?.subscriptions || 0} suscripciones
+                </strong>{" "}
+                registradas. Se desactivará para no perder su historial de
+                pagos.
+              </div>
+            ) : (
+              <p className="text-muted-foreground leading-relaxed">
+                Este cliente no tiene ventas ni suscripciones registradas, por
+                lo que se borrará por completo.
+              </p>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-2.5">
             <Button
               type="button"
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={deleteMutation.isPending}
+              className="h-10 px-4 text-sm"
             >
               Cancelar
             </Button>
@@ -494,12 +528,16 @@ export function CustomerTable({
                 deleteTarget && deleteMutation.mutate(deleteTarget.id)
               }
               disabled={deleteMutation.isPending}
+              className="h-10 px-5 text-sm font-medium gap-2"
             >
-              {deleteMutation.isPending
-                ? "Eliminando..."
-                : "Confirmar Eliminación"}
+              {deleteMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              <span>
+                {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+              </span>
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

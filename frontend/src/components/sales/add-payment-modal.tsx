@@ -8,7 +8,7 @@ import {
 } from "@/types/pos";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import { CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
+import { CreditCard, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -51,23 +50,29 @@ export function AddPaymentModal({
     paymentMethods[0]?.id || ""
   );
   const [amount, setAmount] = useState<number>(pendingUSD);
+  const [appliedRate, setAppliedRate] = useState<number>(
+    exchangeRate > 0 ? exchangeRate : 1
+  );
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Synchronize when sale changes during render
   const [prevSaleId, setPrevSaleId] = useState<string | null>(null);
   if (sale && sale.id !== prevSaleId) {
     setPrevSaleId(sale.id);
     setAmount(pendingUSD);
+    setAppliedRate(exchangeRate > 0 ? exchangeRate : 1);
     setError(null);
   } else if (!sale && prevSaleId !== null) {
     setPrevSaleId(null);
   }
 
-  const selectedAccount = financialAccounts.find((a) => a.id === financialAccountId);
+  const effectiveRate = appliedRate > 0 ? appliedRate : 1;
+  const selectedAccount = financialAccounts.find(
+    (a) => a.id === financialAccountId
+  );
   const isVES = selectedAccount?.currency?.code === "VES";
-  const amountInVES = (amount * exchangeRate).toFixed(2);
+  const amountInVES = (amount * effectiveRate).toFixed(2);
 
   const addPaymentMutation = useMutation({
     mutationFn: async () => {
@@ -81,7 +86,7 @@ export function AddPaymentModal({
         paymentMethodId: paymentMethodId || paymentMethods[0].id,
         amount: isVES ? Number(amountInVES) : amount,
         currencyId: selectedAccount?.currencyId,
-        exchangeRateValue: exchangeRate,
+        exchangeRateValue: effectiveRate,
         reference: reference || undefined,
         notes: notes || undefined,
       };
@@ -90,13 +95,16 @@ export function AddPaymentModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-list"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-stats"] });
       queryClient.invalidateQueries({ queryKey: ["sales-summary"] });
       onOpenChange(false);
       setReference("");
       setNotes("");
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : "Error al registrar el cobro.");
+      setError(
+        err instanceof Error ? err.message : "Error al registrar el abono."
+      );
     },
   });
 
@@ -104,50 +112,63 @@ export function AddPaymentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl p-6 sm:p-7">
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <CreditCard className="h-5 w-5" />
-            <DialogTitle>Abonar Pago a Venta</DialogTitle>
+      <DialogContent className="sm:max-w-xl max-h-[90dvh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl">
+        {/* Encabezado fijo */}
+        <DialogHeader className="shrink-0 px-6 py-5 border-b border-border">
+          <div className="flex items-center gap-3 pr-10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
+              <CreditCard className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-xl font-semibold">
+                Registrar abono
+              </DialogTitle>
+              <DialogDescription className="text-sm mt-0.5 truncate">
+                Venta{" "}
+                <strong className="text-foreground">
+                  {sale.documentNumber || sale.orderNumber || sale.id}
+                </strong>
+              </DialogDescription>
+            </div>
           </div>
-          <DialogDescription>
-            Registra un nuevo abono para la orden <strong>{sale.documentNumber || sale.orderNumber || sale.id}</strong>.
-          </DialogDescription>
         </DialogHeader>
 
-        {error && (
-          <div className="rounded-md bg-destructive/10 p-2.5 text-xs text-destructive flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+        {/* Cuerpo */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
+          {error && (
+            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
-        <div className="space-y-3 py-2 text-xs">
-          {/* Balance card */}
-          <div className="rounded-lg bg-muted/40 p-3 space-y-1">
+          {/* Resumen del saldo */}
+          <div className="rounded-xl bg-muted/40 border border-border p-4 space-y-2 text-sm">
             <div className="flex justify-between text-muted-foreground">
-              <span>Total de la venta:</span>
-              <span className="font-semibold text-foreground">${total.toFixed(2)}</span>
+              <span>Total de la venta</span>
+              <span className="font-semibold text-foreground font-mono">
+                ${total.toFixed(2)}
+              </span>
             </div>
             <div className="flex justify-between text-muted-foreground">
-              <span>Total abonado anteriormente:</span>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              <span>Ya pagado</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
                 ${totalPaid.toFixed(2)}
               </span>
             </div>
-            <div className="flex justify-between text-amber-600 dark:text-amber-400 font-bold border-t pt-1">
-              <span>Saldo restante por cobrar:</span>
-              <span>${pendingUSD.toFixed(2)}</span>
+            <div className="flex justify-between text-amber-600 dark:text-amber-400 font-bold border-t border-border pt-2">
+              <span>Falta por pagar</span>
+              <span className="font-mono">${pendingUSD.toFixed(2)}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Cuenta Destino</Label>
+              <Label className="text-sm font-medium">Cuenta donde entra</Label>
               <select
                 value={financialAccountId || financialAccounts[0]?.id}
                 onChange={(e) => setFinancialAccountId(e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs"
+                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm"
               >
                 {financialAccounts.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -158,11 +179,11 @@ export function AddPaymentModal({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Método de Pago</Label>
+              <Label className="text-sm font-medium">Forma de pago</Label>
               <select
                 value={paymentMethodId || paymentMethods[0]?.id}
                 onChange={(e) => setPaymentMethodId(e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs"
+                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm"
               >
                 {paymentMethods.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -173,65 +194,110 @@ export function AddPaymentModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Monto a Abonar ($)</Label>
+              <Label className="text-sm font-medium">Monto a abonar ($)</Label>
               <Input
                 type="number"
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))}
-                className="h-9 text-xs font-semibold"
+                className="h-10 text-sm font-semibold font-mono"
                 max={pendingUSD}
               />
               {isVES && (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground font-mono">
                   Equivalente: Bs. {amountInVES}
                 </p>
               )}
             </div>
 
-            <div className="space-y-1.5">
-              <Label>N° Referencia / Recibo</Label>
-              <Input
-                placeholder="Ej: 987654"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                className="h-9 text-xs font-mono"
-              />
-            </div>
+            {isVES ? (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Tasa usada (Bs. por $1)
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={appliedRate || ""}
+                  onChange={(e) =>
+                    setAppliedRate(Math.max(0.01, Number(e.target.value) || 0))
+                  }
+                  className="h-10 text-sm font-mono font-semibold"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Referencia (opcional)
+                </Label>
+                <Input
+                  placeholder="Ej. 987654"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  className="h-10 text-sm font-mono"
+                />
+              </div>
+            )}
           </div>
 
+          {isVES && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">
+                Referencia (opcional)
+              </Label>
+              <Input
+                placeholder="Ej. 987654"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                className="h-10 text-sm font-mono"
+              />
+            </div>
+          )}
+
           <div className="space-y-1.5">
-            <Label>Notas del abono (Opcional)</Label>
+            <Label className="text-sm font-medium">Nota (opcional)</Label>
             <Input
-              placeholder="Ej: Pago parcial por transferencia..."
+              placeholder="Ej. Pagó por pago móvil"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="h-9 text-xs"
+              className="h-10 text-sm"
             />
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        {/* Pie fijo */}
+        <div className="shrink-0 px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-2.5">
           <Button
+            type="button"
             variant="outline"
-            size="sm"
             onClick={() => onOpenChange(false)}
+            disabled={addPaymentMutation.isPending}
+            className="h-10 px-4 text-sm"
           >
             Cancelar
           </Button>
 
           <Button
-            size="sm"
+            type="button"
             onClick={() => addPaymentMutation.mutate()}
             disabled={addPaymentMutation.isPending}
-            className="gap-1.5"
+            className="h-10 px-5 text-sm font-medium gap-2"
           >
-            <CheckCircle2 className="h-4 w-4" />
-            <span>{addPaymentMutation.isPending ? "Registrando..." : "Registrar Abono"}</span>
+            {addPaymentMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            <span>
+              {addPaymentMutation.isPending
+                ? "Guardando..."
+                : "Guardar abono"}
+            </span>
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { type RoleDetail, type UserSummaryItem } from "@/types/rbac";
@@ -8,13 +8,14 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Shield, Loader2 } from "lucide-react";
 
 interface AssignRolesModalProps {
@@ -30,14 +31,18 @@ export function AssignRolesModal({
 }: AssignRolesModalProps) {
   const queryClient = useQueryClient();
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [prevUserKey, setPrevUserKey] = useState<string | null>(null);
 
-  useEffect(() => {
+  const currentUserKey = user ? `${user.id}-${open}` : `none-${open}`;
+  if (currentUserKey !== prevUserKey) {
+    setPrevUserKey(currentUserKey);
     if (user && open) {
       setSelectedRoleIds(user.roles?.map((r) => r.id) || []);
+    } else {
+      setSelectedRoleIds([]);
     }
-  }, [user, open]);
+  }
 
-  // Fetch available roles
   const { data: rolesData, isLoading: loadingRoles } = useQuery<{
     success: boolean;
     data: RoleDetail[];
@@ -53,8 +58,9 @@ export function AssignRolesModal({
     mutationFn: (roleIds: string[]) =>
       api.post(`/users/${user?.id}/roles`, { roleIds }),
     onSuccess: () => {
-      toast.success("Roles actualizados exitosamente");
+      toast.success("Roles actualizados correctamente");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-roles"] });
       queryClient.invalidateQueries({ queryKey: ["user-detail", user?.id] });
       onOpenChange(false);
     },
@@ -65,7 +71,9 @@ export function AssignRolesModal({
 
   const handleToggleRole = (roleId: string) => {
     setSelectedRoleIds((prev) =>
-      prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]
+      prev.includes(roleId)
+        ? prev.filter((id) => id !== roleId)
+        : [...prev, roleId]
     );
   };
 
@@ -77,94 +85,111 @@ export function AssignRolesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-7">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <DialogContent className="sm:max-w-xl max-h-[85dvh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-6 py-5 border-b border-border shrink-0">
+          <div className="flex items-center gap-3 pr-8">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
               <Shield className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg">Asignar Roles</DialogTitle>
-              <DialogDescription className="text-xs">
-                Modifique los roles asignados a{" "}
-                <span className="font-semibold text-foreground">
+              <DialogTitle className="text-xl font-semibold">
+                Cambiar roles
+              </DialogTitle>
+              <DialogDescription className="text-sm mt-0.5">
+                Elige los roles que tendrá{" "}
+                <strong className="text-foreground">
                   {user?.name} {user?.lastName || ""}
-                </span>
+                </strong>
                 .
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">
-              Seleccione los roles aplicables:
-            </Label>
-
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col flex-1 min-h-0 overflow-hidden"
+        >
+          <div className="flex-1 min-h-0 overflow-y-auto p-6">
             {loadingRoles ? (
-              <div className="flex items-center justify-center py-6 text-muted-foreground text-xs">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando catálogo de roles...
+              <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Cargando roles...
               </div>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-3">
                 {roles.map((role) => {
                   const isChecked = selectedRoleIds.includes(role.id);
                   return (
-                    <label
+                    <div
                       key={role.id}
-                      className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer text-xs transition-colors select-none ${
+                      onClick={() => handleToggleRole(role.id)}
+                      className={cn(
+                        "flex items-center justify-between gap-4 rounded-xl border p-4 cursor-pointer transition-colors select-none",
                         isChecked
-                          ? "border-primary bg-primary/5 text-primary shadow-2xs"
-                          : "border-border hover:bg-muted/50 text-foreground"
-                      }`}
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-border bg-card hover:bg-muted/40"
+                      )}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => handleToggleRole(role.id)}
-                        className="mt-0.5 rounded border-muted-foreground/30 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                      />
-                      <div className="flex-1 space-y-0.5 overflow-hidden">
-                        <div className="font-semibold flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-foreground">
                             {role.name}
-                            {role.isSystem && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                                SISTEMA
-                              </span>
-                            )}
                           </span>
+                          {role.isSystem && (
+                            <Badge
+                              variant="secondary"
+                              className="text-xs font-normal"
+                            >
+                              Por defecto
+                            </Badge>
+                          )}
                         </div>
                         {role.description && (
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                          <p className="text-sm text-muted-foreground leading-snug">
                             {role.description}
                           </p>
                         )}
                       </div>
-                    </label>
+
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      >
+                        <Switch
+                          checked={isChecked}
+                          onCheckedChange={() => handleToggleRole(role.id)}
+                          aria-label={role.name}
+                        />
+                      </div>
+                    </div>
                   );
                 })}
               </div>
             )}
           </div>
 
-          <DialogFooter className="pt-2">
+          <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-2.5 shrink-0">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={assignRolesMutation.isPending}
+              className="h-10 px-4 text-sm"
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={assignRolesMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={assignRolesMutation.isPending}
+              className="h-10 px-5 text-sm font-medium"
+            >
               {assignRolesMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Guardar Cambios
+              Guardar cambios
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

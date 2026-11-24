@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { type Customer } from "@/types/pos";
-import { UserPlus, User, CreditCard, Phone, Mail } from "lucide-react";
+import { UserPlus, User, CreditCard, Phone, Mail, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -39,7 +38,7 @@ export function QuickCustomerModal({
   const createCustomerMutation = useMutation({
     mutationFn: async () => {
       if (!name.trim()) {
-        throw new Error("El nombre del cliente es obligatorio.");
+        throw new Error("Escribe el nombre del cliente.");
       }
 
       return api.post<Customer>("/customers", {
@@ -62,120 +61,150 @@ export function QuickCustomerModal({
       setError(null);
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : "Error al registrar cliente.");
+      setError(
+        err instanceof Error ? err.message : "Error al guardar el cliente."
+      );
     },
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg p-6 sm:p-7">
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <UserPlus className="h-5 w-5" />
-            <DialogTitle>Registrar Nuevo Cliente</DialogTitle>
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl">
+        {/* Encabezado fijo */}
+        <DialogHeader className="shrink-0 px-6 py-5 border-b border-border">
+          <div className="flex items-center gap-3 pr-10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
+              <UserPlus className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-semibold">
+                Nuevo cliente
+              </DialogTitle>
+              <DialogDescription className="text-sm mt-0.5">
+                Anota sus datos para seleccionarlo en esta venta.
+              </DialogDescription>
+            </div>
           </div>
-          <DialogDescription>
-            Agrega los datos del cliente para asociarlo inmediatamente a la venta y comprobante.
-          </DialogDescription>
         </DialogHeader>
 
-        {error && (
-          <div className="rounded-md bg-destructive/10 p-2.5 text-xs text-destructive">
-            {error}
-          </div>
-        )}
+        {/* Cuerpo */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+          {error && (
+            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive">
+              {error}
+            </div>
+          )}
 
-        <div className="space-y-3 py-2">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="cust-name">Nombre *</Label>
+              <Label htmlFor="cust-name" className="text-sm font-medium">
+                Nombre *
+              </Label>
               <div className="relative">
-                <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="cust-name"
-                  placeholder="Juan"
+                  placeholder="Ej. Juan"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="pl-8 h-9 text-xs"
+                  className="pl-9 h-10 text-sm"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="cust-lastname">Apellido</Label>
+              <Label htmlFor="cust-lastname" className="text-sm font-medium">
+                Apellido
+              </Label>
               <Input
                 id="cust-lastname"
-                placeholder="Pérez"
+                placeholder="Ej. Pérez"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="h-9 text-xs"
+                className="h-10 text-sm"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="cust-doc">Cédula / RIF / ID Fiscal</Label>
+            <Label htmlFor="cust-doc" className="text-sm font-medium">
+              Cédula (opcional)
+            </Label>
             <div className="relative">
-              <CreditCard className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 id="cust-doc"
-                placeholder="V-12345678"
+                placeholder="Ej. V-12345678"
                 value={documentId}
                 onChange={(e) => setDocumentId(e.target.value)}
-                className="pl-8 h-9 text-xs"
+                className="pl-9 h-10 text-sm"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="cust-phone">Teléfono (WhatsApp)</Label>
+              <Label htmlFor="cust-phone" className="text-sm font-medium">
+                Teléfono / WhatsApp
+              </Label>
               <div className="relative">
-                <Phone className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="cust-phone"
-                  placeholder="+58 412..."
+                  placeholder="Ej. 0412-1234567"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="pl-8 h-9 text-xs"
+                  className="pl-9 h-10 text-sm"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="cust-email">Correo Electrónico</Label>
+              <Label htmlFor="cust-email" className="text-sm font-medium">
+                Correo (opcional)
+              </Label>
               <div className="relative">
-                <Mail className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="cust-email"
                   type="email"
-                  placeholder="cliente@email.com"
+                  placeholder="cliente@correo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-8 h-9 text-xs"
+                  className="pl-9 h-10 text-sm"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        {/* Pie fijo */}
+        <div className="shrink-0 px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-2.5">
           <Button
+            type="button"
             variant="outline"
-            size="sm"
             onClick={() => onOpenChange(false)}
+            disabled={createCustomerMutation.isPending}
+            className="h-10 px-4 text-sm"
           >
             Cancelar
           </Button>
           <Button
-            size="sm"
+            type="button"
             onClick={() => createCustomerMutation.mutate()}
             disabled={createCustomerMutation.isPending}
-            className="gap-1.5"
+            className="h-10 px-5 text-sm font-medium gap-2"
           >
-            {createCustomerMutation.isPending ? "Guardando..." : "Crear y Seleccionar"}
+            {createCustomerMutation.isPending && (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            <span>
+              {createCustomerMutation.isPending
+                ? "Guardando..."
+                : "Guardar cliente"}
+            </span>
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

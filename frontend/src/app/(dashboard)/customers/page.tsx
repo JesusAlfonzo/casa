@@ -100,42 +100,35 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-10">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Encabezado */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Directorio de Clientes
-            </h1>
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-              CRM 360°
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Gestión unificada de clientes, pantallas de streaming asignadas, historial comercial y cobranzas por WhatsApp.
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Clientes
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Guarda los datos de tus clientes, revisa sus compras, saldos pendientes y cuentas de streaming.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="gap-1.5 text-xs"
+            className="h-10 px-4 text-sm gap-2"
           >
             <RefreshCw
-              className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
             />
-            Actualizar
+            <span>Actualizar</span>
           </Button>
           <Button
-            size="sm"
             onClick={handleOpenCreateModal}
-            className="gap-1.5 shadow-xs"
+            className="h-10 px-5 text-sm font-medium gap-2"
           >
             <UserPlus className="h-4 w-4" />
-            Nuevo Cliente
+            <span>Nuevo cliente</span>
           </Button>
         </div>
       </div>

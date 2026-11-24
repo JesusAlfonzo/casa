@@ -11,11 +11,7 @@ import {
   type CustomerSubscriptionDetail,
 } from "@/types/customer";
 import { type SaleTransaction } from "@/types/pos";
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -44,9 +40,9 @@ import {
   Send,
   Eye,
   KeyRound,
-  Clock,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 
 interface CustomerDetailSheetProps {
@@ -68,11 +64,7 @@ export function CustomerDetailSheet({
 }: CustomerDetailSheetProps) {
   const nowTimestamp = useClientNow();
 
-  // Fetch full customer details including active subscriptions
-  const {
-    data: customerRes,
-    isLoading: isLoadingCustomer,
-  } = useQuery({
+  const { data: customerRes, isLoading: isLoadingCustomer } = useQuery({
     queryKey: ["customer", customerId],
     queryFn: async () => {
       if (!customerId) return null;
@@ -83,11 +75,7 @@ export function CustomerDetailSheet({
     enabled: Boolean(customerId && open),
   });
 
-  // Fetch sales history for this customer
-  const {
-    data: salesRes,
-    isLoading: isLoadingSales,
-  } = useQuery({
+  const { data: salesRes, isLoading: isLoadingSales } = useQuery({
     queryKey: ["customer-sales", customerId],
     queryFn: async () => {
       if (!customerId) return null;
@@ -103,7 +91,9 @@ export function CustomerDetailSheet({
   const customer = customerRes?.data;
   const sales = salesRes?.items || [];
 
-  const [activeTab, setActiveTab] = useState<"financial" | "streaming" | "sales" | "info">("financial");
+  const [activeTab, setActiveTab] = useState<
+    "financial" | "streaming" | "sales" | "info"
+  >("financial");
   const [salesPage, setSalesPage] = useState(1);
   const salesLimit = 5;
   const salesTotalPages = Math.ceil(sales.length / salesLimit) || 1;
@@ -119,7 +109,7 @@ export function CustomerDetailSheet({
   const tabItems = [
     {
       id: "financial" as const,
-      label: "Finanzas & POS",
+      label: "Saldo y pagos",
       icon: DollarSign,
       badge: undefined,
     },
@@ -131,25 +121,26 @@ export function CustomerDetailSheet({
     },
     {
       id: "sales" as const,
-      label: "Ventas",
+      label: "Compras",
       icon: ShoppingCart,
       badge: salesCount,
     },
     {
       id: "info" as const,
-      label: "Detalles",
+      label: "Datos",
       icon: FileText,
       badge: undefined,
     },
   ];
 
-  // Calculate financial totals
-  const totalInvoicedUSD = sales.reduce(
+  // Calcular totales excluyendo ventas anuladas
+  const validSales = sales.filter((s) => s.status !== "VOIDED");
+  const totalInvoicedUSD = validSales.reduce(
     (acc, s) => acc + Number(s.total || 0),
     0
   );
-  const totalPaidUSD = sales.reduce(
-    (acc, s) => acc + Number(s.totalPaid || 0),
+  const totalPaidUSD = validSales.reduce(
+    (acc, s) => acc + Number(s.totalCollected ?? s.totalPaid ?? 0),
     0
   );
   const totalDebtUSD = Math.max(0, totalInvoicedUSD - totalPaidUSD);
@@ -165,37 +156,45 @@ export function CustomerDetailSheet({
   const handleSendWhatsAppChat = () => {
     if (!customer?.phone) return;
     const clean = customer.phone.replace(/[^0-9]/g, "");
-    const text = `¡Hola ${customer.name}! Te contactamos de CASA ERP. ¿Cómo podemos ayudarte hoy?`;
-    window.open(`https://wa.me/${clean}?text=${encodeURIComponent(text)}`, "_blank");
+    const text = `Hola ${customer.name}, ¿cómo estás? Te escribimos para atenderte.`;
+    window.open(
+      `https://wa.me/${clean}?text=${encodeURIComponent(text)}`,
+      "_blank"
+    );
   };
 
   const handleSendDebtReminderWhatsApp = () => {
-    if (!customer?.phone || totalDebtUSD <= 0) return;
+    if (!customer?.phone || totalDebtUSD <= 0.01) return;
     const clean = customer.phone.replace(/[^0-9]/g, "");
     const text =
-      `👋 ¡Hola ${customer.name}! Te escribimos de *CASA ERP* para recordarte tu estado de cuenta actual:\n\n` +
-      `📌 *Saldo pendiente por pagar:* $${totalDebtUSD.toFixed(2)} (Bs. ${totalDebtBs})\n\n` +
-      `🏦 *Cuentas Disponibles:*\n` +
-      `• *Pago Móvil:* Banesco (0134) - 0412-0000000 - V-12345678\n` +
-      `• *Zelle:* pagos@erphibrido.com\n` +
-      `• *Efectivo en Tienda*\n\n` +
-      `Por favor indícanos o envíanos tu comprobante cuando realices tu abono. ¡Muchas gracias!`;
-    window.open(`https://wa.me/${clean}?text=${encodeURIComponent(text)}`, "_blank");
+      `Hola ${customer.name}, te recordamos tu saldo pendiente:\n\n` +
+      `📌 *Pendiente por pagar:* $${totalDebtUSD.toFixed(2)} (Bs. ${totalDebtBs})\n\n` +
+      `Puedes pagar por Pago Móvil, Transferencia, Zinli, Binance o Efectivo.\n` +
+      `Avísanos cuando realices el pago. ¡Muchas gracias!`;
+    window.open(
+      `https://wa.me/${clean}?text=${encodeURIComponent(text)}`,
+      "_blank"
+    );
   };
 
-  const handleSendSubscriptionCredentials = (sub: CustomerSubscriptionDetail) => {
+  const handleSendSubscriptionCredentials = (
+    sub: CustomerSubscriptionDetail
+  ) => {
     if (!customer?.phone) return;
     const clean = customer.phone.replace(/[^0-9]/g, "");
-    const expDateStr = new Date(sub.expirationDate).toLocaleDateString();
+    const expDateStr = new Date(sub.expirationDate).toLocaleDateString("es-VE");
     const text =
-      `🎬 *CREDENCIALES STREAMING - CASA ERP*\n\n` +
+      `🎬 *ACCESOS DE STREAMING*\n\n` +
       `Servicio: *${sub.service?.name}*\n` +
-      `Correo: \`${sub.streamingAccount?.accessEmail || "N/A"}\`\n` +
-      `Pantalla asignada: *Pantalla #${sub.streamingProfile?.slotNumber || 1}*\n` +
-      `PIN de perfil: *${sub.streamingProfile?.profilePin || "Sin PIN"}*\n` +
+      `Correo: ${sub.streamingAccount?.accessEmail || "N/A"}\n` +
+      `Pantalla: *#${sub.streamingProfile?.slotNumber || 1}*\n` +
+      `PIN: *${sub.streamingProfile?.profilePin || "Sin PIN"}*\n` +
       `Vence el: *${expDateStr}*\n\n` +
-      `⚠️ *Importante:* Recuerda no modificar datos de la cuenta maestra ni otros perfiles.`;
-    window.open(`https://wa.me/${clean}?text=${encodeURIComponent(text)}`, "_blank");
+      `Por favor no cambies la contraseña ni otros perfiles. ¡Gracias!`;
+    window.open(
+      `https://wa.me/${clean}?text=${encodeURIComponent(text)}`,
+      "_blank"
+    );
   };
 
   return (
@@ -206,15 +205,15 @@ export function CustomerDetailSheet({
       >
         {isLoadingCustomer && !customer ? (
           <div className="flex h-64 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : !customer ? (
-          <div className="p-6 text-center text-sm text-muted-foreground">
+          <div className="p-8 text-center text-sm text-muted-foreground">
             No se encontró la información del cliente.
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            {/* Header / Hero */}
+            {/* Encabezado del cliente */}
             <div className="border-b border-border bg-card p-6 sm:px-8 pr-14">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4 min-w-0">
@@ -237,29 +236,29 @@ export function CustomerDetailSheet({
                         </Badge>
                       ) : (
                         <Badge
-                          variant="outline"
-                          className="border-muted bg-muted text-muted-foreground text-xs shrink-0"
+                          variant="secondary"
+                          className="text-xs shrink-0"
                         >
                           Inactivo
                         </Badge>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                       {customer.documentId && (
                         <span className="flex items-center gap-1 font-mono">
-                          <IdCard className="h-3.5 w-3.5" />
+                          <IdCard className="h-4 w-4" />
                           {customer.documentId}
                         </span>
                       )}
                       {customer.phone && (
                         <span className="flex items-center gap-1 font-mono">
-                          <Phone className="h-3.5 w-3.5" />
+                          <Phone className="h-4 w-4" />
                           {customer.phone}
                         </span>
                       )}
                       {customer.email && (
                         <span className="flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5" />
+                          <Mail className="h-4 w-4" />
                           {customer.email}
                         </span>
                       )}
@@ -267,58 +266,55 @@ export function CustomerDetailSheet({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5 shrink-0 pt-2 sm:pt-0">
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                   <Button
-                    size="sm"
                     variant="outline"
-                    className="gap-1.5 text-xs h-9 px-3.5 shadow-2xs"
+                    className="gap-2 text-sm h-10 px-4"
                     onClick={() => onEditCustomer(customer)}
                   >
-                    <Edit className="h-3.5 w-3.5" />
-                    Editar
+                    <Edit className="h-4 w-4" />
+                    <span>Editar</span>
                   </Button>
                   {customer.phone && (
                     <Button
-                      size="sm"
-                      className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 px-3.5 shadow-2xs font-medium"
+                      className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm h-10 px-4 font-medium"
                       onClick={handleSendWhatsAppChat}
                     >
                       <MessageCircle className="h-4 w-4" />
-                      WhatsApp
+                      <span>WhatsApp</span>
                     </Button>
                   )}
                 </div>
               </div>
 
-              {/* Debt Alert if any */}
-              {totalDebtUSD > 0 && (
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-800 dark:text-amber-300">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              {/* Aviso de saldo pendiente */}
+              {totalDebtUSD > 0.01 && (
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">
+                  <div className="flex items-center gap-2.5">
+                    <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
                     <span>
-                      Este cliente tiene un saldo pendiente de{" "}
-                      <strong>${totalDebtUSD.toFixed(2)} USD</strong> (Bs. {totalDebtBs}).
+                      Tiene un saldo pendiente de{" "}
+                      <strong>${totalDebtUSD.toFixed(2)}</strong> (Bs.{" "}
+                      {totalDebtBs}).
                     </span>
                   </div>
                   {customer.phone && (
                     <Button
-                      size="sm"
                       variant="outline"
-                      className="h-8 px-3 border-amber-500/40 bg-white dark:bg-card text-xs hover:bg-amber-100 dark:hover:bg-amber-950/50 shadow-2xs shrink-0"
+                      className="h-9 px-3.5 border-amber-500/40 bg-background text-sm gap-1.5 shrink-0"
                       onClick={handleSendDebtReminderWhatsApp}
                     >
-                      <Send className="mr-1.5 h-3 w-3" />
-                      Cobrar por WhatsApp
+                      <Send className="h-3.5 w-3.5" />
+                      <span>Recordar por WhatsApp</span>
                     </Button>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Content Tabs / Selection Cards */}
+            {/* Navegación interna */}
             <div className="flex-1 p-6 sm:p-8 space-y-6">
-              {/* Interactive Selection Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 select-none">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 select-none">
                 {tabItems.map((item) => {
                   const isSelected = activeTab === item.id;
                   const Icon = item.icon;
@@ -328,43 +324,31 @@ export function CustomerDetailSheet({
                       type="button"
                       onClick={() => setActiveTab(item.id)}
                       className={cn(
-                        "flex items-center justify-between gap-2 p-3 sm:py-3 sm:px-3.5 rounded-xl border text-left transition-all duration-150 cursor-pointer outline-none shadow-2xs",
+                        "flex items-center justify-between gap-2 p-3 rounded-xl border text-left transition-all cursor-pointer outline-none",
                         isSelected
-                          ? "border-primary bg-primary/10 text-primary dark:bg-white/10 dark:border-white/40 dark:text-white shadow-xs ring-1 ring-primary/40 dark:ring-white/30"
-                          : "border-border/80 bg-card hover:bg-muted/60 hover:border-border text-muted-foreground hover:text-foreground"
+                          ? "border-primary bg-primary/10 text-foreground ring-1 ring-primary/30"
+                          : "border-border bg-card hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <div
                           className={cn(
-                            "flex h-7 w-7 items-center justify-center rounded-lg transition-colors shrink-0",
+                            "flex h-8 w-8 items-center justify-center rounded-lg shrink-0",
                             isSelected
-                              ? "bg-primary text-primary-foreground dark:bg-white dark:text-neutral-900 shadow-2xs"
+                              ? "bg-primary text-primary-foreground"
                               : "bg-muted text-muted-foreground"
                           )}
                         >
-                          <Icon className="h-3.5 w-3.5" />
+                          <Icon className="h-4 w-4" />
                         </div>
-                        <span
-                          className={cn(
-                            "text-xs sm:text-sm font-semibold truncate",
-                            isSelected
-                              ? "text-foreground dark:text-white font-bold"
-                              : "text-foreground/80"
-                          )}
-                        >
+                        <span className="text-sm font-semibold truncate">
                           {item.label}
                         </span>
                       </div>
                       {item.badge !== undefined && (
                         <Badge
                           variant={isSelected ? "default" : "secondary"}
-                          className={cn(
-                            "h-5 px-1.5 text-[11px] font-semibold shrink-0 transition-colors",
-                            isSelected
-                              ? "bg-primary text-primary-foreground dark:bg-white dark:text-neutral-900 border-transparent font-bold"
-                              : "bg-muted text-muted-foreground"
-                          )}
+                          className="h-5 px-1.5 text-xs shrink-0"
                         >
                           {item.badge}
                         </Badge>
@@ -374,127 +358,132 @@ export function CustomerDetailSheet({
                 })}
               </div>
 
-              {/* Tab: Resumen Financiero */}
+              {/* Pestaña: Saldo y pagos */}
               {activeTab === "financial" && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <Card className="shadow-xs">
-                      <CardContent className="p-4 space-y-1">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <DollarSign className="h-3.5 w-3.5 text-blue-500" />
-                          Total Facturado
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Card className="shadow-2xs rounded-xl">
+                      <CardContent className="p-5 space-y-1">
+                        <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <DollarSign className="h-4 w-4 text-blue-500" />
+                          Total comprado
                         </span>
-                        <div className="text-lg font-bold text-foreground">
+                        <div className="text-2xl font-bold font-mono text-foreground">
                           ${totalInvoicedUSD.toFixed(2)}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground font-mono">
                           Bs. {totalInvoicedBs}
                         </p>
                       </CardContent>
                     </Card>
 
-                    <Card className="shadow-xs">
-                      <CardContent className="p-4 space-y-1">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
-                          Total Abonado
+                    <Card className="shadow-2xs rounded-xl">
+                      <CardContent className="p-5 space-y-1">
+                        <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <DollarSign className="h-4 w-4 text-emerald-500" />
+                          Total pagado
                         </span>
-                        <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                        <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
                           ${totalPaidUSD.toFixed(2)}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground font-mono">
                           Bs. {(totalPaidUSD * exchangeRate).toFixed(2)}
                         </p>
                       </CardContent>
                     </Card>
 
-                    <Card className="shadow-xs col-span-2 sm:col-span-1">
-                      <CardContent className="p-4 space-y-1">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-                          Saldo Deudor
+                    <Card className="shadow-2xs rounded-xl">
+                      <CardContent className="p-5 space-y-1">
+                        <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <AlertCircle className="h-4 w-4 text-amber-500" />
+                          Pendiente por pagar
                         </span>
                         <div
-                          className={`text-lg font-bold ${
-                            totalDebtUSD > 0
+                          className={`text-2xl font-bold font-mono ${
+                            totalDebtUSD > 0.01
                               ? "text-destructive"
                               : "text-foreground"
                           }`}
                         >
                           ${totalDebtUSD.toFixed(2)}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground font-mono">
                           Bs. {totalDebtBs}
                         </p>
                       </CardContent>
                     </Card>
                   </div>
 
-                  {/* POS Shortcut */}
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+                  {/* Acceso rápido a Ventas */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
                     <div className="space-y-0.5">
-                      <h4 className="text-sm font-semibold text-foreground">
-                        Nueva Compra en POS
+                      <h4 className="text-base font-semibold text-foreground">
+                        Registrar nueva venta
                       </h4>
-                      <p className="text-xs text-muted-foreground">
-                        Inicia una venta directa asignando automáticamente a este cliente.
+                      <p className="text-sm text-muted-foreground">
+                        Ve al módulo de ventas para cobrar productos o servicios.
                       </p>
                     </div>
                     <Link
                       href="/sales"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 h-10 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
                     >
                       <ShoppingCart className="h-4 w-4" />
-                      Ir al POS
+                      <span>Ir a Ventas</span>
                     </Link>
                   </div>
                 </div>
               )}
 
-              {/* Tab: Streaming 360° */}
+              {/* Pestaña: Streaming */}
               {activeTab === "streaming" && (
                 <div className="space-y-4">
-                  {customer.subscriptions && customer.subscriptions.length > 0 ? (
+                  {customer.subscriptions &&
+                  customer.subscriptions.length > 0 ? (
                     <div className="space-y-3">
                       {customer.subscriptions.map((sub) => {
                         const expDate = new Date(sub.expirationDate);
                         const daysLeft = Math.ceil(
-                          (expDate.getTime() - nowTimestamp) / (1000 * 3600 * 24)
+                          (expDate.getTime() - nowTimestamp) /
+                            (1000 * 3600 * 24)
                         );
 
                         return (
                           <div
                             key={sub.id}
-                            className="rounded-lg border border-border bg-card p-4 space-y-3 shadow-xs"
+                            className="rounded-xl border border-border bg-card p-4 space-y-3"
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <Tv className="h-4 w-4 text-purple-500" />
-                                  <span className="font-semibold text-sm text-foreground">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Tv className="h-4 w-4 text-purple-500 shrink-0" />
+                                  <span className="font-semibold text-base text-foreground">
                                     {sub.service?.name || "Servicio Streaming"}
                                   </span>
                                   {daysLeft <= 0 ? (
-                                    <Badge variant="destructive" className="text-[10px]">
+                                    <Badge
+                                      variant="destructive"
+                                      className="text-xs"
+                                    >
                                       Vencida
                                     </Badge>
                                   ) : daysLeft <= 3 ? (
                                     <Badge
                                       variant="outline"
-                                      className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px]"
+                                      className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs"
                                     >
-                                      Vence en {daysLeft}d
+                                      Vence en {daysLeft} días
                                     </Badge>
                                   ) : (
                                     <Badge
                                       variant="outline"
-                                      className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 text-[10px]"
+                                      className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs"
                                     >
-                                      Al día ({daysLeft}d)
+                                      Al día ({daysLeft} días)
                                     </Badge>
                                   )}
                                 </div>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-sm text-muted-foreground truncate">
                                   Cuenta:{" "}
                                   <span className="font-mono text-foreground font-medium">
                                     {sub.streamingAccount?.accessEmail || "N/A"}
@@ -502,49 +491,52 @@ export function CustomerDetailSheet({
                                 </p>
                               </div>
 
-                              <div className="text-right">
-                                <span className="text-sm font-bold text-foreground">
+                              <div className="text-right shrink-0">
+                                <span className="text-base font-bold font-mono text-foreground">
                                   ${Number(sub.agreedPrice || 0).toFixed(2)}
                                 </span>
-                                <p className="text-[10px] text-muted-foreground">
+                                <p className="text-xs text-muted-foreground">
                                   {sub.billingPeriod}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/50 p-2.5 text-xs">
-                              <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 p-3 text-sm">
+                              <div className="flex flex-wrap items-center gap-3">
                                 <span>
                                   Pantalla:{" "}
                                   <strong>
                                     #{sub.streamingProfile?.slotNumber || 1} (
-                                    {sub.streamingProfile?.profileName || "Perfil"})
+                                    {sub.streamingProfile?.profileName ||
+                                      "Perfil"}
+                                    )
                                   </strong>
                                 </span>
                                 {sub.streamingProfile?.profilePin && (
                                   <span className="flex items-center gap-1 font-mono text-muted-foreground">
-                                    <KeyRound className="h-3 w-3" />
+                                    <KeyRound className="h-3.5 w-3.5" />
                                     PIN: {sub.streamingProfile.profilePin}
                                   </span>
                                 )}
                               </div>
-                              <span className="flex items-center gap-1 text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
-                                Corte: {expDate.toLocaleDateString()}
+                              <span className="flex items-center gap-1.5 text-muted-foreground">
+                                <Calendar className="h-3.5 w-3.5" />
+                                Vence: {expDate.toLocaleDateString("es-VE")}
                               </span>
                             </div>
 
                             {customer.phone && (
-                              <div className="flex justify-end gap-2 pt-1">
+                              <div className="flex justify-end pt-1">
                                 <Button
                                   type="button"
-                                  size="sm"
                                   variant="outline"
-                                  className="h-8 gap-1.5 text-xs"
-                                  onClick={() => handleSendSubscriptionCredentials(sub)}
+                                  className="h-9 px-3.5 gap-2 text-sm"
+                                  onClick={() =>
+                                    handleSendSubscriptionCredentials(sub)
+                                  }
                                 >
-                                  <Send className="h-3 w-3" />
-                                  Enviar Credenciales
+                                  <Send className="h-3.5 w-3.5" />
+                                  <span>Enviar accesos por WhatsApp</span>
                                 </Button>
                               </div>
                             )}
@@ -553,90 +545,111 @@ export function CustomerDetailSheet({
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-dashed border-border p-8 text-center space-y-2">
-                      <Tv className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm font-medium text-foreground">
-                        Sin suscripciones activas
+                    <div className="rounded-xl border border-dashed border-border p-10 text-center space-y-2">
+                      <Tv className="mx-auto h-9 w-9 text-muted-foreground" />
+                      <p className="text-base font-medium text-foreground">
+                        Sin pantallas de streaming
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        Este cliente aún no tiene pantallas de streaming asignadas.
+                      <p className="text-sm text-muted-foreground">
+                        Este cliente todavía no tiene suscripciones asignadas.
                       </p>
                       <Link
                         href="/subscriptions"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors mt-2"
+                        className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 h-10 text-sm font-medium hover:bg-muted transition-colors mt-2"
                       >
-                        Asignar Pantalla
+                        Asignar pantalla
                       </Link>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Tab: Historial de Ventas */}
+              {/* Pestaña: Compras */}
               {activeTab === "sales" && (
                 <div className="space-y-4">
                   {isLoadingSales ? (
                     <div className="flex h-32 items-center justify-center">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
                   ) : sales.length > 0 ? (
-                    <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="rounded-xl border border-border overflow-hidden bg-card">
                       <Table>
                         <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-xs">Comprobante</TableHead>
-                            <TableHead className="text-xs">Fecha</TableHead>
-                            <TableHead className="text-xs">Total</TableHead>
-                            <TableHead className="text-xs">Estado</TableHead>
-                            <TableHead className="text-right text-xs">Acción</TableHead>
+                          <TableRow className="bg-muted/40">
+                            <TableHead className="text-sm font-semibold">
+                              Recibo
+                            </TableHead>
+                            <TableHead className="text-sm font-semibold">
+                              Fecha
+                            </TableHead>
+                            <TableHead className="text-sm font-semibold">
+                              Total
+                            </TableHead>
+                            <TableHead className="text-sm font-semibold">
+                              Estado
+                            </TableHead>
+                            <TableHead className="text-right text-sm font-semibold">
+                              Ver
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {paginatedSales.map((sale) => (
                             <TableRow key={sale.id}>
-                              <TableCell className="font-mono text-xs font-semibold">
-                                {sale.documentNumber || sale.orderNumber || sale.id.slice(0, 8)}
+                              <TableCell className="font-mono text-sm font-semibold">
+                                {sale.documentNumber ||
+                                  sale.orderNumber ||
+                                  sale.id.slice(0, 8)}
                               </TableCell>
-                              <TableCell className="text-xs text-muted-foreground">
-                                {new Date(sale.soldAt).toLocaleDateString()}
+                              <TableCell className="text-sm text-muted-foreground">
+                                {new Date(sale.soldAt).toLocaleDateString(
+                                  "es-VE"
+                                )}
                               </TableCell>
-                              <TableCell className="text-xs font-medium">
+                              <TableCell className="text-sm font-mono font-medium">
                                 ${Number(sale.total || 0).toFixed(2)}
                               </TableCell>
                               <TableCell>
                                 {sale.status === "COMPLETED" ? (
                                   <Badge
                                     variant="outline"
-                                    className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 text-[10px]"
+                                    className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 text-xs"
                                   >
-                                    Pagado
+                                    Pagada
                                   </Badge>
                                 ) : sale.status === "PARTIALLY_PAID" ? (
                                   <Badge
                                     variant="outline"
-                                    className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px]"
+                                    className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-xs"
                                   >
-                                    Parcial
+                                    Abono parcial
+                                  </Badge>
+                                ) : sale.status === "VOIDED" ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-destructive/30 bg-destructive/10 text-destructive text-xs"
+                                  >
+                                    Anulada
                                   </Badge>
                                 ) : (
                                   <Badge
                                     variant="outline"
-                                    className="border-red-500/30 bg-red-500/10 text-red-600 text-[10px]"
+                                    className="border-blue-500/30 bg-blue-500/10 text-blue-600 text-xs"
                                   >
-                                    Pendiente
+                                    Por cobrar
                                   </Badge>
                                 )}
                               </TableCell>
                               <TableCell className="text-right">
                                 {onViewReceipt && (
                                   <Button
-                                    size="sm"
+                                    size="icon"
                                     variant="ghost"
-                                    className="h-7 w-7 p-0"
+                                    className="h-9 w-9"
                                     onClick={() => onViewReceipt(sale)}
-                                    title="Ver Recibo Térmico"
+                                    title="Ver recibo"
                                   >
-                                    <Eye className="h-3.5 w-3.5" />
+                                    <Eye className="h-4 w-4" />
                                   </Button>
                                 )}
                               </TableCell>
@@ -645,113 +658,118 @@ export function CustomerDetailSheet({
                         </TableBody>
                       </Table>
 
-                      {/* Customer Sales Pagination */}
-                      <div className="flex items-center justify-between border-t border-border px-3 py-2 bg-card">
-                        <span className="text-[11px] text-muted-foreground">
-                          Página {salesPage} de {salesTotalPages} ({sales.length} compras)
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSalesPage((p) => Math.max(p - 1, 1))}
-                            disabled={salesPage <= 1}
-                            className="h-7 px-2 text-xs"
-                          >
-                            <ChevronLeft className="h-3 w-3 mr-0.5" /> Ant.
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSalesPage((p) => Math.min(p + 1, salesTotalPages))}
-                            disabled={salesPage >= salesTotalPages}
-                            className="h-7 px-2 text-xs"
-                          >
-                            Sig. <ChevronRight className="h-3 w-3 ml-0.5" />
-                          </Button>
+                      {salesTotalPages > 1 && (
+                        <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-muted/20">
+                          <span className="text-xs text-muted-foreground">
+                            Página {salesPage} de {salesTotalPages} (
+                            {sales.length} compras)
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setSalesPage((p) => Math.max(p - 1, 1))
+                              }
+                              disabled={salesPage <= 1}
+                              className="h-8 px-2.5 text-xs"
+                            >
+                              <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
+                              Ant.
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setSalesPage((p) =>
+                                  Math.min(p + 1, salesTotalPages)
+                                )
+                              }
+                              disabled={salesPage >= salesTotalPages}
+                              className="h-8 px-2.5 text-xs"
+                            >
+                              Sig.
+                              <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-dashed border-border p-8 text-center space-y-2">
-                      <ShoppingCart className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm font-medium text-foreground">
+                    <div className="rounded-xl border border-dashed border-border p-10 text-center space-y-2">
+                      <ShoppingCart className="mx-auto h-9 w-9 text-muted-foreground" />
+                      <p className="text-base font-medium text-foreground">
                         Sin compras registradas
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        El cliente no tiene órdenes de compra en el historial de facturación.
+                      <p className="text-sm text-muted-foreground">
+                        Este cliente todavía no tiene compras en el historial.
                       </p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Tab: Detalles & Notas */}
+              {/* Pestaña: Datos */}
               {activeTab === "info" && (
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-border bg-card p-4 space-y-4 text-xs">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <span className="text-muted-foreground flex items-center gap-1 font-medium">
-                          <IdCard className="h-3.5 w-3.5" />
-                          Documento de Identidad:
-                        </span>
-                        <p className="font-semibold text-foreground">
-                          {customer.documentId || "No especificado"}
-                        </p>
-                      </div>
-
-                      <div className="space-y-1">
-                        <span className="text-muted-foreground flex items-center gap-1 font-medium">
-                          <Phone className="h-3.5 w-3.5" />
-                          Teléfono:
-                        </span>
-                        <p className="font-semibold text-foreground">
-                          {customer.phone || "No registrado"}
-                        </p>
-                      </div>
-                    </div>
-
+                <div className="rounded-xl border border-border bg-card p-5 space-y-5 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <span className="text-muted-foreground flex items-center gap-1 font-medium">
-                        <Mail className="h-3.5 w-3.5" />
-                        Correo Electrónico:
+                      <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                        <IdCard className="h-4 w-4" />
+                        Cédula
                       </span>
                       <p className="font-semibold text-foreground">
-                        {customer.email || "No registrado"}
+                        {customer.documentId || "No registrada"}
                       </p>
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-muted-foreground flex items-center gap-1 font-medium">
-                        <MapPin className="h-3.5 w-3.5" />
-                        Dirección:
+                      <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                        <Phone className="h-4 w-4" />
+                        Teléfono / WhatsApp
                       </span>
                       <p className="font-semibold text-foreground">
-                        {customer.address || "No especificada"}
+                        {customer.phone || "No registrado"}
                       </p>
                     </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <span className="text-muted-foreground flex items-center gap-1 font-medium">
-                        <FileText className="h-3.5 w-3.5" />
-                        Notas u Observaciones:
-                      </span>
-                      <p className="rounded-md bg-muted/50 p-2.5 text-foreground leading-relaxed">
-                        {customer.notes || "Sin observaciones adicionales."}
-                      </p>
-                    </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                      <Mail className="h-4 w-4" />
+                      Correo electrónico
+                    </span>
+                    <p className="font-semibold text-foreground">
+                      {customer.email || "No registrado"}
+                    </p>
+                  </div>
 
-                    <div className="pt-2 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        Registrado el: {new Date(customer.createdAt).toLocaleDateString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        ID: {customer.id.slice(0, 8)}...
-                      </span>
-                    </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                      <MapPin className="h-4 w-4" />
+                      Dirección
+                    </span>
+                    <p className="font-semibold text-foreground">
+                      {customer.address || "No especificada"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                      <FileText className="h-4 w-4" />
+                      Notas
+                    </span>
+                    <p className="rounded-lg bg-muted/40 p-3 text-foreground leading-relaxed">
+                      {customer.notes || "Sin notas adicionales."}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-border text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>
+                      Cliente desde el{" "}
+                      {new Date(customer.createdAt).toLocaleDateString("es-VE")}
+                    </span>
                   </div>
                 </div>
               )}

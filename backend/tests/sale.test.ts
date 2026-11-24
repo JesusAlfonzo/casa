@@ -26,8 +26,8 @@ describe('Sales, Billing & Kardex Integration Suite', () => {
     const [invRes, curRes, accRes, pmRes, custRes] = await Promise.all([
       request(app).get('/api/inventories').set(authHeaders),
       request(app).get('/api/currencies').set(authHeaders),
-      request(app).get('/api/financial-accounts').set(authHeaders),
-      request(app).get('/api/payment-methods').set(authHeaders),
+      request(app).get('/api/financial-accounts?isActive=true').set(authHeaders),
+      request(app).get('/api/payment-methods?isActive=true').set(authHeaders),
       request(app).get('/api/customers').set(authHeaders),
     ]);
 
@@ -41,13 +41,15 @@ describe('Sales, Billing & Kardex Integration Suite', () => {
 
     const accountList = accRes.body.data || accRes.body.items || [];
     const financialAccount = accountList.find(
-      (a: any) => a.currencyId === currencyUsd.id
+      (a: any) => a.currencyId === currencyUsd.id && a.isActive !== false
     );
     expect(financialAccount).toBeDefined();
     const initialAccountBalance = Number(financialAccount.currentBalance);
 
     const paymentMethodList = pmRes.body.data || pmRes.body.items || [];
-    const paymentMethod = paymentMethodList[0];
+    const paymentMethod = paymentMethodList.find(
+      (m: any) => m.isActive !== false
+    );
     expect(paymentMethod).toBeDefined();
 
     const customerList = custRes.body.items || custRes.body.data || [];

@@ -773,6 +773,7 @@ export const createSale = async (
           include: {
             paymentMethod: true,
             financialAccount: true,
+            currency: true,
           },
         },
         _count: {
@@ -900,6 +901,7 @@ export const getSales = async (
           include: {
             paymentMethod: true,
             financialAccount: true,
+            currency: true,
           },
         },
         _count: {
@@ -945,6 +947,7 @@ export const getSaleById = async (id: string): Promise<SaleWithDetails> => {
         include: {
           paymentMethod: true,
           financialAccount: true,
+          currency: true,
         },
       },
       _count: {
@@ -1117,6 +1120,7 @@ export const addSalePayment = async (
           include: {
             paymentMethod: true,
             financialAccount: true,
+            currency: true,
           },
         },
         _count: {
@@ -1241,6 +1245,7 @@ export const voidSale = async (
           include: {
             paymentMethod: true,
             financialAccount: true,
+            currency: true,
           },
         },
         _count: {

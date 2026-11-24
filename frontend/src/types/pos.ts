@@ -63,6 +63,7 @@ export interface FinancialAccount {
   bankName?: string | null;
   accountNumber?: string | null;
   currencyId: string;
+  isActive?: boolean;
   currentBalance: number | string;
   currency?: Currency;
   paymentMethods?: Array<{
@@ -152,8 +153,15 @@ export interface SaleTransaction {
   payments: Array<{
     id: string;
     amount: number | string;
+    baseCurrencyAmount?: number | string;
     reference?: string | null;
     paidAt: string;
+    currency?: {
+      id?: string;
+      code: string;
+      symbol: string;
+      name?: string;
+    } | null;
     paymentMethod?: {
       name: string;
     } | null;
